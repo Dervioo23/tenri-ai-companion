@@ -1,0 +1,104 @@
+[
+  {
+    "id": "tenri-concept",
+    "title": "Konsep Tenri AI Companion",
+    "type": "project_note",
+    "active_version": "v1",
+    "status": "active",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "project_notes/tenri_concept.md",
+        "status": "active",
+        "created_at": "2026-06-02"
+      }
+    ],
+    "notes": "Konsep awal persona Tenri dan relasinya dengan arsip."
+  },
+  {
+    "id": "tursalahjalan-world",
+    "title": "Dunia tursalahjalan.com",
+    "type": "project_note",
+    "active_version": "v1",
+    "status": "active",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "project_notes/tursalahjalan_world.md",
+        "status": "active",
+        "created_at": "2026-06-02"
+      }
+    ],
+    "notes": "Catatan dunia naratif Tenri, Pajonga, dan ruang web-app."
+  },
+  {
+    "id": "archive-memory-notes",
+    "title": "Catatan Arsip dan Ingatan",
+    "type": "archive",
+    "active_version": "v1",
+    "status": "active",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "archives/archive_memory_notes.md",
+        "status": "active",
+        "created_at": "2026-06-02"
+      }
+    ],
+    "notes": "Catatan awal tentang arsip, memori kolektif, dan pelestarian pengetahuan."
+  },
+  {
+    "id": "demo-outline",
+    "title": "Outline Demo Presentasi Tenri",
+    "type": "presentation",
+    "active_version": "v1",
+    "status": "active",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "presentation/demo_outline.md",
+        "status": "active",
+        "created_at": "2026-06-02"
+      }
+    ],
+    "notes": "Outline awal untuk demo presentasi Tenri."
+  },
+  {
+    "id": "pengenalan-ai-pptx",
+    "title": "Pengenalan-AI.pptx",
+    "type": "presentation",
+    "active_version": "v2",
+    "status": "disabled",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "presentation/pengenalan-ai-pptx_v1.pptx",
+        "status": "archived",
+        "created_at": "2026-06-04"
+      },
+      {
+        "version": "v2",
+        "path": "presentation/pengenalan-ai-pptx_v2.pptx",
+        "status": "active",
+        "created_at": "2026-06-04"
+      }
+    ],
+    "notes": "Dinonaktifkan — v2 file tidak ada, digantikan oleh pengenalan-ai"
+  },
+  {
+    "id": "pengenalan-ai",
+    "title": "Pengenalan-AI (Dervio)",
+    "type": "presentation",
+    "active_version": "v1",
+    "status": "active",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "presentations/Pengenalan-AI.pptx",
+        "status": "active",
+        "created_at": "2026-06-04"
+      }
+    ],
+    "notes": "Diimpor otomatis oleh import_document.py pada 2026-06-04 20:21"
+  }
+]

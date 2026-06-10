@@ -1,0 +1,322 @@
+[
+  {
+    "id": 1,
+    "title": "PENGENALAN TEKNOLOGI",
+    "subtitle": "Mengenal Kecerdasan Buatan",
+    "topics": [
+      "pengenalan",
+      "teknologi",
+      "mengenal",
+      "kecerdasan",
+      "buatan",
+      "AI",
+      "artificial intelligence"
+    ],
+    "presenter_notes": "Slide pembuka: Mengenal Kecerdasan Buatan — Apa itu AI, bagaimana ia bekerja, dan mengapa relevan bagi kita sehari-hari. Materi Kuliah untuk Audiens Mahasiswa Umum.",
+    "tenri_role": "Berikan komentar pembuka yang menarik tentang relevansi AI dalam kehidupan sehari-hari.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "pengenalan teknologi",
+      "pengenalan",
+      "teknologi",
+      "mengenal",
+      "kecerdasan buatan",
+      "artificial intelligence"
+    ]
+  },
+  {
+    "id": 2,
+    "title": "DEFINISI DASAR",
+    "subtitle": "Apa Itu Kecerdasan Buatan?",
+    "topics": [
+      "definisi",
+      "dasar",
+      "kecerdasan buatan",
+      "artificial intelligence",
+      "AI",
+      "mesin",
+      "kognitif",
+      "mitos",
+      "kenyataan"
+    ],
+    "presenter_notes": "Kecerdasan Buatan (AI) adalah kemampuan mesin untuk meniru fungsi kognitif manusia — seperti belajar dari pengalaman, mengenali pola, mengambil keputusan, dan memahami bahasa. MITOS: robot super cerdas yang berpikir seperti manusia. KENYATAAN: program statistik yang sangat baik dalam satu tugas spesifik.",
+    "tenri_role": "Koreksi mitos-mitos tentang AI dan jelaskan kenyataan yang lebih sederhana.",
+    "expected_tenri_mode": "gentle_objection",
+    "triggers": [
+      "definisi",
+      "dasar",
+      "apa itu ai",
+      "apa itu kecerdasan buatan",
+      "kecerdasan buatan",
+      "mitos",
+      "kenyataan"
+    ]
+  },
+  {
+    "id": 3,
+    "title": "PEMETAAN ISTILAH",
+    "subtitle": "AI, Machine Learning & Deep Learning",
+    "topics": [
+      "pemetaan",
+      "istilah",
+      "machine learning",
+      "deep learning",
+      "artificial intelligence",
+      "hubungan",
+      "perbedaan"
+    ],
+    "presenter_notes": "AI adalah payung besar: segala teknik agar mesin bertindak cerdas. Machine Learning adalah subset AI yang belajar dari data tanpa diprogram eksplisit. Deep Learning adalah subset ML yang menggunakan jaringan saraf tiruan berlapis-lapis.",
+    "tenri_role": "Jelaskan hubungan hierarki antara AI, ML, dan Deep Learning dengan analogi sederhana.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "pemetaan",
+      "istilah",
+      "machine learning",
+      "deep learning",
+      "ml",
+      "dl",
+      "perbedaan ai"
+    ]
+  },
+  {
+    "id": 4,
+    "title": "CARA KERJA",
+    "subtitle": "Bagaimana AI Belajar?",
+    "topics": [
+      "cara",
+      "kerja",
+      "bagaimana",
+      "belajar",
+      "data",
+      "pola",
+      "pelatihan",
+      "model"
+    ],
+    "presenter_notes": "Analogi: seperti anak yang dikenalkan ratusan foto kucing. Lama-lama ia menangkap ciri-cirinya, lalu bisa mengenali kucing baru yang belum pernah dilihat. Proses: Data masuk → Model dilatih → Model mengenali pola → Prediksi dibuat.",
+    "tenri_role": "Berikan analogi yang membantu audiens memahami proses belajar mesin secara intuitif.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "cara kerja",
+      "bagaimana ai belajar",
+      "training",
+      "pelatihan",
+      "data latih",
+      "model"
+    ]
+  },
+  {
+    "id": 5,
+    "title": "TIGA PENDEKATAN",
+    "subtitle": "Cara Mesin Dilatih",
+    "topics": [
+      "supervised",
+      "unsupervised",
+      "reinforcement",
+      "pendekatan",
+      "metode",
+      "supervised learning",
+      "pembelajaran"
+    ],
+    "presenter_notes": "Tiga pendekatan pelatihan AI: (1) Supervised Learning — diberi contoh berlabel (ini kucing, ini bukan). Contoh: deteksi spam, prediksi harga. (2) Unsupervised Learning — tanpa label, mesin mencari pola sendiri. Contoh: segmentasi pelanggan. (3) Reinforcement Learning — belajar dari trial dan error dengan reward/punishment.",
+    "tenri_role": "Berikan contoh nyata dari setiap pendekatan yang relevan dengan kehidupan mahasiswa.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "tiga pendekatan",
+      "supervised",
+      "unsupervised",
+      "reinforcement",
+      "cara mesin dilatih",
+      "pendekatan pembelajaran"
+    ]
+  },
+  {
+    "id": 6,
+    "title": "TANPA DISADARI",
+    "subtitle": "AI Ada di Sekitar Kita",
+    "topics": [
+      "tanpa disadari",
+      "sekitar",
+      "rekomendasi",
+      "tiktok",
+      "youtube",
+      "asisten suara",
+      "navigasi",
+      "google maps"
+    ],
+    "presenter_notes": "AI sudah ada di kehidupan sehari-hari tanpa disadari: rekomendasi konten TikTok/YouTube/Shopee, asisten suara (Siri, Google Assistant, Alexa), navigasi GPS (Google Maps prediksi macet), face unlock di smartphone, filter foto otomatis.",
+    "tenri_role": "Tunjukkan bahwa AI sudah sangat dekat dengan kehidupan audiens sehari-hari.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "tanpa disadari",
+      "sekitar kita",
+      "rekomendasi",
+      "tiktok",
+      "youtube",
+      "asisten suara",
+      "google maps",
+      "face unlock"
+    ]
+  },
+  {
+    "id": 7,
+    "title": "YANG SEDANG RAMAI",
+    "subtitle": "AI Generatif: Mesin yang Mencipta",
+    "topics": [
+      "generatif",
+      "mesin",
+      "mencipta",
+      "ChatGPT",
+      "Claude",
+      "Gemini",
+      "DALL-E",
+      "Midjourney",
+      "teks",
+      "gambar",
+      "kode"
+    ],
+    "presenter_notes": "AI Generatif berbeda dari AI yang hanya menggolongkan — ia membuat konten baru: tulisan, gambar, suara, bahkan kode program. Contoh: ChatGPT, Claude, Gemini (teks & percakapan), DALL-E, Midjourney, Stable Diffusion (gambar), GitHub Copilot (kode).",
+    "tenri_role": "Tunjukkan perbedaan antara AI generatif dan AI konvensional dengan contoh yang familiar.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "ai generatif",
+      "generatif",
+      "chatgpt",
+      "claude",
+      "gemini",
+      "midjourney",
+      "dall-e",
+      "mesin yang mencipta",
+      "yang sedang ramai"
+    ]
+  },
+  {
+    "id": 8,
+    "title": "SISI TERANG",
+    "subtitle": "Manfaat Nyata AI",
+    "topics": [
+      "sisi terang",
+      "manfaat",
+      "kesehatan",
+      "pendidikan",
+      "produktivitas",
+      "rontgen",
+      "diagnosis",
+      "tutor"
+    ],
+    "presenter_notes": "Manfaat nyata AI: (1) Kesehatan — membantu dokter membaca hasil rontgen & mendeteksi penyakit lebih dini. (2) Pendidikan — tutor adaptif yang menyesuaikan kecepatan belajar. (3) Produktivitas — otomatisasi tugas repetitif. (4) Aksesibilitas — terjemahan real-time, text-to-speech untuk difabel.",
+    "tenri_role": "Tekankan manfaat konkret AI dengan data atau contoh nyata dari knowledge base.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "sisi terang",
+      "manfaat",
+      "manfaat ai",
+      "kesehatan",
+      "pendidikan",
+      "produktivitas",
+      "aksesibilitas"
+    ]
+  },
+  {
+    "id": 9,
+    "title": "SISI GELAP",
+    "subtitle": "Risiko & Keterbatasan",
+    "topics": [
+      "sisi gelap",
+      "risiko",
+      "keterbatasan",
+      "bias",
+      "halusinasi",
+      "privasi",
+      "keamanan",
+      "deepfake"
+    ],
+    "presenter_notes": "Risiko & keterbatasan AI: (1) Bias data — jika data latih timpang, keputusan AI ikut diskriminatif. (2) Halusinasi — AI bisa menghasilkan informasi yang terdengar benar tapi salah. (3) Privasi — sistem AI sering membutuhkan data personal dalam jumlah besar. (4) Deepfake — potensi penyalahgunaan untuk disinformasi.",
+    "tenri_role": "Ingatkan audiens bahwa AI bukan tanpa risiko, terutama soal bias dan halusinasi.",
+    "expected_tenri_mode": "gentle_objection",
+    "triggers": [
+      "sisi gelap",
+      "risiko",
+      "bias",
+      "halusinasi",
+      "privasi",
+      "deepfake",
+      "keterbatasan"
+    ]
+  },
+  {
+    "id": 10,
+    "title": "SIKAP YANG TEPAT",
+    "subtitle": "Menggunakan AI Secara Bijak",
+    "topics": [
+      "sikap",
+      "tepat",
+      "bijak",
+      "kritis",
+      "verifikasi",
+      "alat",
+      "pengganti",
+      "etika"
+    ],
+    "presenter_notes": "Sikap bijak menggunakan AI: AI adalah alat, bukan pengganti otak — pakai untuk mempercepat, bukan menggantikan proses berpikir. Selalu verifikasi setiap output AI. Jangan serahkan keputusan penting sepenuhnya ke AI. Tetap kritis dan paham konteks.",
+    "tenri_role": "Ajak audiens berpikir kritis tentang hubungan manusia dan AI, bukan sekadar pengguna pasif.",
+    "expected_tenri_mode": "gentle_objection",
+    "triggers": [
+      "sikap tepat",
+      "bijak",
+      "kritis",
+      "verifikasi",
+      "etika ai",
+      "alat bukan pengganti"
+    ]
+  },
+  {
+    "id": 11,
+    "title": "LANGKAH PRAKTIS",
+    "subtitle": "Cara Mulai Belajar AI",
+    "topics": [
+      "langkah",
+      "praktis",
+      "mulai",
+      "belajar",
+      "python",
+      "statistika",
+      "kaggle",
+      "proyek"
+    ],
+    "presenter_notes": "Langkah praktis belajar AI: (1) Kuasai dasar — logika, statistika dasar, dan Python (paling ramah pemula). (2) Gunakan platform gratis — Google Colab, Kaggle, Hugging Face untuk latihan langsung. (3) Bangun proyek kecil — mulai dari dataset sederhana. (4) Ikuti komunitas AI lokal dan internasional.",
+    "tenri_role": "Berikan roadmap yang realistis dan tidak menakutkan untuk mahasiswa yang ingin mulai belajar AI.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "langkah praktis",
+      "mulai belajar",
+      "python",
+      "kaggle",
+      "google colab",
+      "belajar ai",
+      "cara mulai"
+    ]
+  },
+  {
+    "id": 12,
+    "title": "RINGKASAN",
+    "subtitle": "Yang Perlu Diingat",
+    "topics": [
+      "ringkasan",
+      "perlu",
+      "diingat",
+      "kesimpulan",
+      "penutup",
+      "poin utama"
+    ],
+    "presenter_notes": "Ringkasan: AI adalah mesin yang belajar pola dari data, bukan robot berkesadaran. Ia sudah ada di sekitar kita: rekomendasi, navigasi, hingga buka kunci wajah. Punya manfaat besar, tetapi juga risiko: bias, halusinasi, dan privasi. Gunakan sebagai alat bantu berpikir, selalu verifikasi, dan tetap kritis.",
+    "tenri_role": "Tutup dengan pesan yang bermakna tentang hubungan manusia dan teknologi AI.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "ringkasan",
+      "perlu diingat",
+      "kesimpulan",
+      "penutup",
+      "terima kasih"
+    ]
+  }
+]

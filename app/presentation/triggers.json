@@ -1,0 +1,195 @@
+[
+  {
+    "id": "t001",
+    "patterns": [
+      "pengenalan teknologi",
+      "pengenalan",
+      "teknologi",
+      "mengenal",
+      "kecerdasan"
+    ],
+    "topic": "PENGENALAN TEKNOLOGI",
+    "mode": "comment",
+    "slide_ids": [
+      1
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri comment singkat terkait 'PENGENALAN TEKNOLOGI'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t002",
+    "patterns": [
+      "definisi",
+      "dasar",
+      "artificial intelligence"
+    ],
+    "topic": "DEFINISI DASAR",
+    "mode": "comment",
+    "slide_ids": [
+      2
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri comment singkat terkait 'DEFINISI DASAR'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t003",
+    "patterns": [
+      "pemetaan",
+      "istilah",
+      "machine learning",
+      "deep learning"
+    ],
+    "topic": "PEMETAAN ISTILAH",
+    "mode": "gentle_objection",
+    "slide_ids": [
+      3
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri gentle objection singkat terkait 'PEMETAAN ISTILAH'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t004",
+    "patterns": [
+      "cara kerja",
+      "belajar dari data",
+      "pelatihan"
+    ],
+    "topic": "CARA KERJA",
+    "mode": "clarification",
+    "slide_ids": [
+      4
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri clarification singkat terkait 'CARA KERJA'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t005",
+    "patterns": [
+      "tiga pendekatan",
+      "supervised",
+      "unsupervised",
+      "reinforcement"
+    ],
+    "topic": "TIGA PENDEKATAN",
+    "mode": "question",
+    "slide_ids": [
+      5
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri question singkat terkait 'TIGA PENDEKATAN'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t006",
+    "patterns": [
+      "tanpa disadari",
+      "kehidupan sehari",
+      "rekomendasi konten",
+      "tiktok",
+      "shopee"
+    ],
+    "topic": "TANPA DISADARI",
+    "mode": "memory",
+    "slide_ids": [
+      6
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri memory singkat terkait 'TANPA DISADARI'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t007",
+    "patterns": [
+      "sedang ramai",
+      "generatif",
+      "chatgpt",
+      "dall-e",
+      "midjourney"
+    ],
+    "topic": "YANG SEDANG RAMAI",
+    "mode": "grounding_check",
+    "slide_ids": [
+      7
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri grounding check singkat terkait 'YANG SEDANG RAMAI'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t008",
+    "patterns": [
+      "sisi terang",
+      "manfaat ai",
+      "tutor adaptif",
+      "aksesibilitas"
+    ],
+    "topic": "SISI TERANG",
+    "mode": "closing_memory",
+    "slide_ids": [
+      8
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri closing memory singkat terkait 'SISI TERANG'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t009",
+    "patterns": [
+      "sisi gelap",
+      "risiko",
+      "bias data",
+      "halusinasi",
+      "deepfake"
+    ],
+    "topic": "SISI GELAP",
+    "mode": "comment",
+    "slide_ids": [
+      9
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri comment singkat terkait 'SISI GELAP'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t010",
+    "patterns": [
+      "sikap yang tepat",
+      "verifikasi output",
+      "alat bantu",
+      "kritis"
+    ],
+    "topic": "SIKAP YANG TEPAT",
+    "mode": "comment",
+    "slide_ids": [
+      10
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri comment singkat terkait 'SIKAP YANG TEPAT'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t011",
+    "patterns": [
+      "langkah praktis",
+      "mulai dari mana",
+      "eksperimen kecil"
+    ],
+    "topic": "LANGKAH PRAKTIS",
+    "mode": "gentle_objection",
+    "slide_ids": [
+      11
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri gentle objection singkat terkait 'LANGKAH PRAKTIS'. Maksimal 2 kalimat."
+  },
+  {
+    "id": "t012",
+    "patterns": [
+      "ringkasan",
+      "perlu diingat",
+      "kesimpulan",
+      "penutup"
+    ],
+    "topic": "RINGKASAN",
+    "mode": "clarification",
+    "slide_ids": [
+      12
+    ],
+    "cooldown_seconds": 120,
+    "suggested_response_intent": "Beri clarification singkat terkait 'RINGKASAN'. Maksimal 2 kalimat."
+  }
+]

@@ -1,0 +1,43 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Local editor and OS files
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and runtime data
+logs/
+app/data/logs/
+app/data/conversation_history.json
+app/data/session_log.txt
+app/data/rehearsals/audio/
+*.log
+
+# Generated audio/cache artifacts
+assets/audio/temp/
+assets/audio/responses/
+assets/audio/tts_cache/
+assets/images/camera_snapshots/
+
+# Generated knowledge indexes
+app/knowledge/indexes/*.json
+
+# Local scratch / accidental files
+=*
