@@ -142,6 +142,25 @@ class TestCommands:
         tracker = make_tracker(tmp_path)
         assert tracker.detect_command("ceritakan tentang La Galigo") is None
 
+    def test_back_word_in_long_sentence_is_not_navigation(self, tmp_path):
+        """'kembali' embedded in a long audience sentence must NOT move the slide (BUG-17)."""
+        tracker = make_tracker(tmp_path)
+        assert tracker.detect_command("kembali ke topik utama kita") is None
+
+    def test_advance_word_in_long_sentence_is_not_navigation(self, tmp_path):
+        tracker = make_tracker(tmp_path)
+        assert tracker.detect_command("mari kita lanjut membahas dampaknya") is None
+
+    def test_short_bare_back_word_still_navigates(self, tmp_path):
+        tracker = make_tracker(tmp_path)
+        assert tracker.detect_command("kembali") == "prev"
+        assert tracker.detect_command("oke lanjut") == "next"
+
+    def test_back_word_with_slide_target_still_navigates(self, tmp_path):
+        """A presentation-target word keeps a longer command working."""
+        tracker = make_tracker(tmp_path)
+        assert tracker.detect_command("kembali ke slide sebelumnya") == "prev"
+
     def test_handle_next(self, tmp_path):
         tracker = make_tracker(tmp_path)
         tracker.handle_command("next")
@@ -223,6 +242,24 @@ class TestAutoTrigger:
         tracker = make_tracker(tmp_path)
         tracker.detect_trigger("selesai demo penutup")
         assert tracker.current_slide()["id"] == 3
+
+    def test_trigger_does_not_match_substring_inside_word(self, tmp_path):
+        """A short trigger ('ai') must not fire inside a larger word ('pakai') (BUG-17)."""
+        slides = [
+            {"id": 1, "title": "Intro", "topics": [], "triggers": ["intro"]},
+            {"id": 2, "title": "Teknologi", "topics": [], "triggers": ["ai"]},
+        ]
+        tracker = make_tracker(tmp_path, slides=slides)
+        assert tracker.detect_trigger("saya pakai laptop santai") is None
+
+    def test_trigger_matches_whole_word(self, tmp_path):
+        slides = [
+            {"id": 1, "title": "Intro", "topics": [], "triggers": ["intro"]},
+            {"id": 2, "title": "Teknologi", "topics": [], "triggers": ["ai"]},
+        ]
+        tracker = make_tracker(tmp_path, slides=slides)
+        slide = tracker.detect_trigger("teknologi ai semakin canggih")
+        assert slide is not None and slide["id"] == 2
 
 
 class TestContextFormat:

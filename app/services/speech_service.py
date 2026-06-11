@@ -20,8 +20,6 @@ _HALLUCINATION_PHRASES: set[str] = {
     "sub indo by broth3rmax",
     "terima kasih telah menonton",
     "terima kasih sudah menonton",
-    "terima kasih",
-    "makasih",
     "thanks for watching",
     "please subscribe",
     "like dan subscribe",
@@ -47,6 +45,16 @@ _HALLUCINATION_PHRASES: set[str] = {
     "jangan lupa like",
 }
 
+# Frasa yang sekaligus halusinasi Whisper umum DAN frasa penutup sah dari presenter
+# ("terima kasih"/"makasih" menutup conversation window di InteractionLoop). Hanya
+# difilter sebagai halusinasi saat kepercayaan audio TIDAK bisa diverifikasi (tidak
+# ada segmen / fallback format teks). Saat Whisper memberi no_speech_prob rendah,
+# frasa ini diloloskan agar presenter bisa menutup percakapan lewat suara. Lihat BUG-02.
+_AMBIGUOUS_HALLUCINATION_PHRASES: frozenset[str] = frozenset({
+    "terima kasih",
+    "makasih",
+})
+
 # Kata pendek yang VALID sebagai respons presenter (tidak difilter meski 1 kata pendek)
 _VALID_SHORT_WORDS: frozenset[str] = frozenset({
     "ya", "iya", "oke", "ok", "baik", "siap", "lanjut", "stop",
@@ -56,14 +64,14 @@ _VALID_SHORT_WORDS: frozenset[str] = frozenset({
 TENRI_WAKE_WORD_PATTERN = re.compile(
     r"^\s*(?:(?:oke|ok|halo|hai|hey|baik|permisi)\s+)?"
     r"(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|tandri|"
-    r"tenry|ten ri|ten li|tenri|tendi|tenderi|teneri|teri)\b",
+    r"tenry|tengri|tengry|ten gri|ten ri|ten li|tenri|tendi|tenderi|teneri|teri)\b",
     re.IGNORECASE,
 )
 
 # Catches misspellings of "Tenri" anywhere in the sentence (not just at start).
 _TENRI_ANYWHERE_PATTERN = re.compile(
     r"\b(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|tandri|"
-    r"tenry|ten ri|ten li|tendi|tenderi|teneri|teri)\b",
+    r"tenry|tengri|tengry|ten gri|ten ri|ten li|tendi|tenderi|teneri|teri)\b",
     re.IGNORECASE,
 )
 
@@ -255,7 +263,7 @@ class SpeechService:
         # Remove duplicate wake words at start ("Tenri Tenri ...")
         normalized = re.sub(
             r"^(Tenri)(?:[\s,]+(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|"
-            r"tandri|tenry|ten ri|ten li|teri|tenri|tendi|tenderi|teneri)\b)+",
+            r"tandri|tenry|tengri|tengry|ten gri|ten ri|ten li|teri|tenri|tendi|tenderi|teneri)\b)+",
             r"\1",
             normalized,
             flags=re.IGNORECASE,
@@ -323,9 +331,10 @@ class SpeechService:
         Runs BEFORE any API call to Groq. This is the primary hallucination
         prevention layer â€” bad audio is blocked here so Whisper never sees it.
 
-        Why duration â‰¥ 0.5s: SPEECH_PAUSE_THRESHOLD=0.55 means the recognizer
-        always appends ~0.55s of trailing silence. Captures shorter than 0.5s
-        are silence bursts or noise spikes that somehow passed the energy gate.
+        Why duration â‰¥ 0.5s: SPEECH_PAUSE_THRESHOLD (default 1.1) makes the recognizer
+        append trailing silence after speech, so a real utterance is well over
+        0.5s. Captures shorter than 0.5s are silence bursts or noise spikes that
+        somehow passed the energy gate.
 
         Why RMS â‰¥ 150: real speech in a quiet room produces RMS well above 500.
         RMS below 150 means the audio is effectively silent.
@@ -363,7 +372,7 @@ class SpeechService:
         self._validate_audio_quality(audio)
 
         wav_bytes = audio.get_wav_data()
-        lang = "id" if Config.APP_LANGUAGE == "id" else "en"
+        lang = Config.stt_language_code()
         prompt = (
             "Tenri, halo tenri, oke tenri, hey tenri, hai tenri, lanjut slide, "
             "kecerdasan buatan, machine learning, deep learning, artificial intelligence, "
@@ -374,8 +383,11 @@ class SpeechService:
             "pelestarian budaya, warisan budaya, naskah, manuskrip"
         )
 
-        # Try verbose_json first to get no_speech_prob for silence detection
+        # Try verbose_json first to get no_speech_prob for silence detection.
+        # confidence_verified flips True only when Whisper returns a positive
+        # speech-probability signal; ambiguous closing phrases are kept only then.
         text = ""
+        confidence_verified = False
         try:
             result = self._groq_client.audio.transcriptions.create(
                 model=Config.GROQ_STT_MODEL,
@@ -411,6 +423,8 @@ class SpeechService:
                     if avg_no_speech > 0.45:
                         logger.info("Treating as silence (no_speech_prob > 0.45).")
                         raise sr.UnknownValueError()
+                    # Low no_speech_prob → genuine speech, not a silence hallucination.
+                    confidence_verified = True
 
                 if logprobs:
                     avg_logprob = sum(logprobs) / len(logprobs)
@@ -440,6 +454,14 @@ class SpeechService:
         cleaned = text.lower().strip().rstrip(".!?,")
         if cleaned in _HALLUCINATION_PHRASES:
             logger.info(f"Filtered Whisper hallucination: {repr(text)}")
+            raise sr.UnknownValueError()
+
+        # "terima kasih"/"makasih" are real closing phrases. Only drop them as
+        # hallucination when we could NOT verify the audio is confident speech
+        # (no segments / text-format fallback). When Whisper reports low
+        # no_speech_prob, let them through so the presenter can close by voice (BUG-02).
+        if not confidence_verified and cleaned in _AMBIGUOUS_HALLUCINATION_PHRASES:
+            logger.info(f"Filtered low-confidence ambiguous phrase: {repr(text)}")
             raise sr.UnknownValueError()
 
         # Filter short / repeated-syllable hallucinations from noise or echo.
@@ -485,7 +507,7 @@ class SpeechService:
     def _transcribe_with_google(self, audio: sr.AudioData) -> str:
         """Transcribe captured audio using Google Speech Recognition."""
         audio = self.cap_audio_for_stt(audio)
-        lang_code = "id-ID" if Config.APP_LANGUAGE == "id" else "en-US"
+        lang_code = "en-US" if Config.stt_language_code() == "en" else "id-ID"
         return self.recognizer.recognize_google(audio, language=lang_code)
 
     def listen_and_transcribe(
@@ -575,5 +597,4 @@ class SpeechService:
         except Exception as e:
             logger.error(f"Critical error during recording/transcription: {e}", exc_info=True)
             return f"[ERROR: {e}]", False
-
 

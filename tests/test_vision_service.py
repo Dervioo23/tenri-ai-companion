@@ -28,3 +28,41 @@ def test_face_cascade_exception_sets_none() -> None:
         service = VisionService()
 
     assert service.face_cascade is None
+
+
+# ------------------------------------------------------------------ snapshot throttle (BUG-08)
+
+def _service() -> VisionService:
+    loaded = MagicMock()
+    loaded.empty.return_value = False
+    with patch("app.services.vision_service.cv2.CascadeClassifier", return_value=loaded):
+        return VisionService()
+
+
+def test_should_snapshot_false_without_face() -> None:
+    service = _service()
+    assert service._should_snapshot(face_detected=False, now=1000.0) is False
+
+
+def test_should_snapshot_does_not_fire_repeatedly_within_interval() -> None:
+    """The ~10 FPS loop must NOT write ~10 files within the same window (BUG-08)."""
+    service = _service()
+    interval = VisionService.SNAPSHOT_INTERVAL_SECONDS
+
+    # First call within a window fires once...
+    assert service._should_snapshot(True, 100.0) is True
+    # ...then every subsequent frame in that window is suppressed.
+    writes = sum(
+        service._should_snapshot(True, 100.0 + 0.1 * i)
+        for i in range(1, int(interval * 10))
+    )
+    assert writes == 0
+
+
+def test_should_snapshot_fires_again_after_interval_elapses() -> None:
+    service = _service()
+    interval = VisionService.SNAPSHOT_INTERVAL_SECONDS
+
+    assert service._should_snapshot(True, 100.0) is True
+    assert service._should_snapshot(True, 100.0 + interval - 0.5) is False
+    assert service._should_snapshot(True, 100.0 + interval) is True

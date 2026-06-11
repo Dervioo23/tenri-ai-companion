@@ -447,3 +447,62 @@ def test_tokenize_empty_string():
 
 def test_tokenize_all_short_words():
     assert _tokenize("ya di ke la") == []
+
+
+# ------------------------------------------------------------------ wake word boundary (BUG-01)
+
+_WAKE_WORDS = [
+    "tenri", "halo tenri", "hallo tenri", "hai tenri", "hi tenri",
+    "oke tenri", "ok tenri", "hey tenri", "eh tenri",
+]
+
+
+@pytest.mark.parametrize(
+    "utterance",
+    [
+        "kisah we tenriabeng sangat menarik",
+        "tokoh tenriabeng dalam la galigo",
+        "naskah ini menyebut tenriabeng",
+    ],
+)
+def test_wake_word_not_matched_inside_other_word(intent_classifier_with_local, utterance):
+    """'tenri' inside 'Tenriabeng' must NOT be treated as a wake call (BUG-01)."""
+    result = intent_classifier_with_local.classify(
+        utterance,
+        wake_words=_WAKE_WORDS,
+        audience_markers=frozenset(),
+        closing_phrases=frozenset(),
+        in_conversation=False,
+        quiet_mode=False,
+    )
+    assert result.was_wake_word is False
+    assert result.intent != Intent.ASKING_TENRI
+
+
+def test_wake_word_standalone_still_detected(intent_classifier_with_local):
+    """A real wake call must still be detected and its query extracted."""
+    result = intent_classifier_with_local.classify(
+        "Tenri jelaskan slide ini",
+        wake_words=_WAKE_WORDS,
+        audience_markers=frozenset(),
+        closing_phrases=frozenset(),
+        in_conversation=False,
+        quiet_mode=False,
+    )
+    assert result.was_wake_word is True
+    assert result.intent == Intent.ASKING_TENRI
+    assert result.query == "jelaskan slide ini"
+
+
+def test_multiword_wake_extracts_query_after_wake(intent_classifier_with_local):
+    """Multi-word wake ('halo tenri') matches before bare 'tenri' and strips cleanly."""
+    result = intent_classifier_with_local.classify(
+        "Halo Tenri, apa itu lontara",
+        wake_words=_WAKE_WORDS,
+        audience_markers=frozenset(),
+        closing_phrases=frozenset(),
+        in_conversation=False,
+        quiet_mode=False,
+    )
+    assert result.was_wake_word is True
+    assert result.query == "apa itu lontara"

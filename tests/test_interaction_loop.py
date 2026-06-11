@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch, call
 
-from app.core.interaction_loop import InteractionLoop, _STATIC_TTS_PHRASES
+from app.core.interaction_loop import InteractionLoop, _STATIC_TTS_PHRASES, _WAKE_ACK_RESPONSES
 from app.state import AppState
 
 
@@ -53,6 +53,32 @@ def test_input_requests_spoken_response_recognizes_commentary_request() -> None:
     assert not InteractionLoop._input_requests_spoken_response("lanjut Tenri")
 
 
+def test_input_requests_spoken_response_ignores_question_word_inside_other_word() -> None:
+    """'apa' inside 'lapangan'/'harapan' must NOT count as a question (BUG-03)."""
+    assert not InteractionLoop._input_requests_spoken_response("lanjut ke lapangan utama")
+    assert not InteractionLoop._input_requests_spoken_response("next, harapan kita besar")
+    assert not InteractionLoop._input_requests_spoken_response("mundur, siapapun boleh maju")
+
+
+def test_input_requests_spoken_response_detects_standalone_question_words() -> None:
+    """Real standalone question words and '?' must still be detected."""
+    assert InteractionLoop._input_requests_spoken_response("lanjut, apa maksudnya")
+    assert InteractionLoop._input_requests_spoken_response("next berapa jumlahnya")
+    assert InteractionLoop._input_requests_spoken_response("mundur, betul begitu?")
+
+
+def test_is_exit_command_recognizes_quit_words_any_mode() -> None:
+    """Exit words must end the loop in any mode, tolerant of case/whitespace (BUG-10)."""
+    for word in ["exit", "quit", "keluar", "KELUAR", "  Exit  ", "Quit"]:
+        assert InteractionLoop._is_exit_command(word), word
+
+
+def test_is_exit_command_ignores_non_exit_input() -> None:
+    assert not InteractionLoop._is_exit_command("jelaskan slide ini")
+    assert not InteractionLoop._is_exit_command("keluarkan datanya")  # bukan kata utuh "keluar"
+    assert not InteractionLoop._is_exit_command("")
+
+
 def test_slide_explanation_request_detects_direct_slide_explain_commands() -> None:
     assert InteractionLoop._is_slide_explanation_request("jelaskan slide ini")
     assert InteractionLoop._is_slide_explanation_request("silahkan jelaskan slide pertama ini")
@@ -75,6 +101,26 @@ def test_slide_explanation_query_uses_slide_substance() -> None:
     assert "AI meniru fungsi kognitif manusia" in query
     assert "Koreksi mitos AI" in query
     assert query != "jelaskan slide ini"
+
+
+def test_slide_explanation_filter_prefers_non_persona_sources() -> None:
+    chunks = [
+        {"source_id": "tenri-concept", "text": "Tenri adalah companion presentasi."},
+        {"source_id": "pengenalan-ai", "text": "AI meniru fungsi kognitif manusia."},
+        {"source_id": "tursalahjalan-world", "text": "Museum La Galigo."},
+    ]
+
+    result = InteractionLoop._filter_slide_explanation_chunks(chunks)
+
+    assert result == [{"source_id": "pengenalan-ai", "text": "AI meniru fungsi kognitif manusia."}]
+
+
+def test_slide_explanation_filter_keeps_persona_sources_as_fallback() -> None:
+    chunks = [
+        {"source_id": "tenri-concept", "text": "Tenri adalah companion presentasi."},
+    ]
+
+    assert InteractionLoop._filter_slide_explanation_chunks(chunks) == chunks
 
 
 def test_live_char_budget_can_be_bypassed_by_detail_request() -> None:
@@ -296,7 +342,10 @@ def test_prewarm_tts_cache_generates_all_static_phrases() -> None:
     loop.elevenlabs_service.client = True
     loop.elevenlabs_service.text_to_speech.return_value = "/cache/audio.mp3"
 
-    with patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True):
+    with (
+        patch("app.core.interaction_loop.Config.TTS_PREWARM_ENABLED", True),
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True),
+    ):
         with patch("app.core.interaction_loop._STATIC_TTS_PHRASES", ("Halo.", "Oke.")):
             loop._prewarm_tts_cache()
             loop._prewarm_thread.join(timeout=2.0)
@@ -312,7 +361,10 @@ def test_prewarm_tts_cache_skips_when_voice_output_disabled() -> None:
     loop.elevenlabs_service = MagicMock()
     loop.elevenlabs_service.client = True
 
-    with patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", False):
+    with (
+        patch("app.core.interaction_loop.Config.TTS_PREWARM_ENABLED", True),
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", False),
+    ):
         loop._prewarm_tts_cache()
 
     loop.elevenlabs_service.text_to_speech.assert_not_called()
@@ -324,7 +376,10 @@ def test_prewarm_tts_cache_skips_when_client_is_none() -> None:
     loop.elevenlabs_service = MagicMock()
     loop.elevenlabs_service.client = None
 
-    with patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True):
+    with (
+        patch("app.core.interaction_loop.Config.TTS_PREWARM_ENABLED", True),
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True),
+    ):
         loop._prewarm_tts_cache()
 
     loop.elevenlabs_service.text_to_speech.assert_not_called()
@@ -347,7 +402,10 @@ def test_prewarm_tts_cache_continues_after_single_phrase_failure() -> None:
 
     loop.elevenlabs_service.text_to_speech.side_effect = flaky_tts
 
-    with patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True):
+    with (
+        patch("app.core.interaction_loop.Config.TTS_PREWARM_ENABLED", True),
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True),
+    ):
         with patch("app.core.interaction_loop._STATIC_TTS_PHRASES", ("A.", "B.", "C.")):
             loop._prewarm_tts_cache()
             loop._prewarm_thread.join(timeout=2.0)
@@ -363,6 +421,28 @@ def test_static_tts_phrases_includes_greeting_and_farewells() -> None:
     assert "Sama-sama." in _STATIC_TTS_PHRASES
     assert "Senang bisa membantu." in _STATIC_TTS_PHRASES
     assert len(_STATIC_TTS_PHRASES) >= 7
+
+
+def test_prewarm_tts_cache_skips_when_prewarm_disabled() -> None:
+    loop = InteractionLoop.__new__(InteractionLoop)
+    loop.elevenlabs_service = MagicMock()
+    loop.elevenlabs_service.client = True
+
+    with (
+        patch("app.core.interaction_loop.Config.TTS_PREWARM_ENABLED", False),
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True),
+    ):
+        loop._prewarm_tts_cache()
+
+    loop.elevenlabs_service.text_to_speech.assert_not_called()
+    assert not hasattr(loop, "_prewarm_thread")
+
+
+def test_wake_ack_responses_are_short_and_slide_free() -> None:
+    assert _WAKE_ACK_RESPONSES
+    for response in _WAKE_ACK_RESPONSES:
+        assert len(response) <= 40
+        assert "slide" not in response.lower()
 
 
 def test_sanitize_wake_ack_keeps_short_natural_response() -> None:
@@ -610,6 +690,36 @@ def test_extract_stream_segment_prefers_sentence_boundary() -> None:
 
     assert segment == "AI membaca pola."
     assert rest == "Ia bukan manusia."
+
+
+def test_extract_stream_segment_does_not_split_incomplete_decimal() -> None:
+    """Buffer ending in 'digit.' is a possible decimal mid-stream — must not split (BUG-16)."""
+    segment, rest = InteractionLoop._extract_stream_segment("Angka naik 3.", allow_soft=False)
+
+    assert segment is None
+    assert rest == "Angka naik 3."
+
+
+def test_extract_stream_segment_splits_after_decimal_completes() -> None:
+    """Once the decimal and a real sentence end arrive, the full sentence splits."""
+    segment, rest = InteractionLoop._extract_stream_segment(
+        "Angka naik 3.5 persen. Lalu turun.",
+        allow_soft=False,
+    )
+
+    assert segment == "Angka naik 3.5 persen."
+    assert rest == "Lalu turun."
+
+
+def test_extract_stream_segment_still_splits_sentence_ending_in_number() -> None:
+    """A real sentence ending in 'number.' followed by whitespace still splits."""
+    segment, rest = InteractionLoop._extract_stream_segment(
+        "Tercatat tahun 2024. Berikutnya naik.",
+        allow_soft=False,
+    )
+
+    assert segment == "Tercatat tahun 2024."
+    assert rest == "Berikutnya naik."
 
 
 def test_extract_stream_segment_allows_soft_first_clause() -> None:

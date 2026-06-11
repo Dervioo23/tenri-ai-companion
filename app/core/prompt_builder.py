@@ -122,8 +122,11 @@ class PromptBuilder:
             "2. Jelaskan maknanya, bukan sekadar mengulang judul atau bullet.\n"
             "3. Beri implikasi untuk audiens.\n"
             "4. Jangan menyebut nomor slide, posisi slide, atau judul slide.\n"
-            "5. Maksimal 2 kalimat dan idealnya 220-280 karakter.\n"
-            "6. Jangan membuka dengan 'slide ini tentang' jika bisa langsung ke makna."
+            "5. Maksimal 2 kalimat dan idealnya 180-260 karakter.\n"
+            "6. Jangan membuka dengan 'slide ini', 'pada slide ini', atau judul slide. "
+            "Mulai langsung dari makna inti.\n"
+            "7. Jangan membuat definisi kamus. Ucapkan seperti companion panggung: "
+            "satu gagasan utama, satu penguatan, lalu selesai."
         )
 
         if context_str:

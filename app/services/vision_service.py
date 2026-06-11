@@ -7,6 +7,9 @@ from app.config import Config
 logger = logging.getLogger("AICompanion.VisionService")
 
 class VisionService:
+    # Minimum seconds between debug snapshots while a face is visible.
+    SNAPSHOT_INTERVAL_SECONDS = 15.0
+
     def __init__(self):
         self.enabled = Config.VISION_ENABLED
         self.camera_active = False
@@ -18,7 +21,12 @@ class VisionService:
         self.face_detected = False
         self.face_count = 0
         self.motion_detected = False
-        
+
+        # Snapshot throttle: write at most one frame per interval. Uses a
+        # monotonic timestamp instead of `int(time.time()) % N` which fired on
+        # every ~10 FPS iteration within the matching second (~10 writes). See BUG-08.
+        self._last_snapshot_at = 0.0
+
         # Lock for thread safety
         self.lock = threading.Lock()
         
@@ -137,9 +145,10 @@ class VisionService:
                     self.motion_detected = motion
                     face_detected_now = self.face_detected
 
-                # Save snapshot if user is talking or if face is detected (limit frequency to avoid disk flood)
-                # For MVP debug, we save snapshot only if face detected and less than once every 10 seconds
-                if face_detected_now and int(time.time()) % 15 == 0:
+                # Save a debug snapshot when a face is present, throttled to at most
+                # once every SNAPSHOT_INTERVAL_SECONDS so the ~10 FPS loop doesn't
+                # flood disk with identical writes (BUG-08).
+                if self._should_snapshot(face_detected_now, time.monotonic()):
                     snapshot_path = Config.SNAPSHOTS_DIR / "latest_face.jpg"
                     cv2.imwrite(str(snapshot_path), frame)
                     logger.debug(f"Saved camera snapshot to {snapshot_path}")
@@ -150,6 +159,16 @@ class VisionService:
             except Exception as e:
                 logger.error(f"Error in vision thread loop: {e}")
                 time.sleep(0.5)
+
+    def _should_snapshot(self, face_detected: bool, now: float) -> bool:
+        """Return True at most once per SNAPSHOT_INTERVAL_SECONDS while a face is
+        visible. Records the snapshot time as a side effect when it returns True."""
+        if not face_detected:
+            return False
+        if now - self._last_snapshot_at < self.SNAPSHOT_INTERVAL_SECONDS:
+            return False
+        self._last_snapshot_at = now
+        return True
 
     def get_visual_context(self) -> dict:
         """Returns the current visual environment context safely."""

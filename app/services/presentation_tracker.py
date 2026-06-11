@@ -12,6 +12,12 @@ SLIDES_PATH = PRESENTATION_DIR / "slides.json"
 
 _ADVANCE_WORDS = {"lanjut", "next", "selanjutnya", "berikutnya", "maju"}
 _BACK_WORDS = {"mundur", "back", "sebelumnya", "kembali", "prev"}
+# A bare advance/back word ("kembali", "lanjut") only counts as slide navigation
+# in a short, command-like utterance OR when a presentation-target word makes the
+# intent explicit. Otherwise "kembali ke topik utama kita" would silently move the
+# slide (BUG-17).
+_NAV_TARGET_WORDS = {"slide", "materi", "bagian", "halaman", "poin"}
+_MAX_BARE_NAV_WORDS = 3
 _GOTO_RE = re.compile(r"\bslide\s+(\d+)\b", re.IGNORECASE)
 _GOTO_KE_RE = re.compile(r"\bslide\s+ke[-\s]?(\d+)\b", re.IGNORECASE)
 
@@ -134,10 +140,16 @@ class PresentationTracker:
             ordinal = re.sub(r"\s+", " ", match.group(1).lower()).strip()
             return f"goto:{_ORDINAL_WORDS[ordinal]}"
         words = set(re.split(r"\W+", lowered))
-        if words & _ADVANCE_WORDS:
-            return "next"
-        if words & _BACK_WORDS:
-            return "prev"
+        # Bare advance/back words: require a short utterance or an explicit
+        # presentation-target word so ordinary sentences don't move the slide.
+        if words & (_ADVANCE_WORDS | _BACK_WORDS):
+            short_command = len(lowered.split()) <= _MAX_BARE_NAV_WORDS
+            mentions_target = bool(words & _NAV_TARGET_WORDS)
+            if short_command or mentions_target:
+                if words & _ADVANCE_WORDS:
+                    return "next"
+                if words & _BACK_WORDS:
+                    return "prev"
         return None
 
     def handle_command(self, command: str) -> dict | None:
@@ -161,7 +173,10 @@ class PresentationTracker:
             if i == self._current_index:
                 continue
             for trigger in slide.get("triggers", []):
-                if trigger.lower() in lowered:
+                trig = trigger.lower().strip()
+                # Whole-word/phrase match so a generic auto-generated trigger like
+                # "ai" doesn't fire inside "pakai"/"santai" (BUG-17).
+                if trig and re.search(rf"\b{re.escape(trig)}\b", lowered):
                     self._current_index = i
                     logger.info(
                         f"Auto-triggered slide {i + 1}: '{slide.get('title')}'"

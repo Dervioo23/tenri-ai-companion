@@ -79,11 +79,27 @@ _AGENDA_SENTENCE_RE = re.compile(
 
 _FRAGMENT_START_RE = re.compile(
     r"^(?:"
+    r"adalah|merupakan|"
     r"mengenali|mengambil|memahami|membaca|melihat|menjaga|meniru|"
     r"mengolah|menyimpan|menganalisis|membantu|memberi|membuat|"
     r"belajar|berpikir|menjawab"
     r")\b",
     re.IGNORECASE,
+)
+
+_SLIDE_READING_REWRITES: tuple[tuple[re.Pattern, str], ...] = (
+    (
+        re.compile(r"^slide ini membuka konsep dasar\s+", re.IGNORECASE),
+        "konsep dasarnya adalah ",
+    ),
+    (
+        re.compile(r"^slide ini (?:membahas|menjelaskan|memperkenalkan|mengenalkan|berisi|tentang)\s+", re.IGNORECASE),
+        "",
+    ),
+    (
+        re.compile(r"^pada slide ini kita (?:akan )?(?:membahas|melihat|mengenal)\s+", re.IGNORECASE),
+        "",
+    ),
 )
 
 
@@ -96,6 +112,8 @@ def _clean_spoken_sentence(sentence: str) -> str:
     cleaned = cleaned.replace("**", "").replace("__", "").replace("`", "")
     cleaned = _STERILE_CLOSING_RE.sub("", cleaned)
     cleaned = _TRAILING_SOFTENER_RE.sub("", cleaned)
+    for pattern, replacement in _SLIDE_READING_REWRITES:
+        cleaned = pattern.sub(replacement, cleaned)
     cleaned = _MULTISPACE_RE.sub(" ", cleaned)
     cleaned = re.sub(r"\s+([,.!?])", r"\1", cleaned).strip()
     if cleaned and cleaned[-1] not in ".!?":

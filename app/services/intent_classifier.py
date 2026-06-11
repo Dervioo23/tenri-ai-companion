@@ -228,6 +228,17 @@ class IntentClassifier:
     def _normalize(text: str) -> str:
         return re.sub(r"\s+", " ", re.sub(r"[^\w\s]+", " ", text.lower())).strip()
 
+    @staticmethod
+    def _wake_match(lower: str, wake: str) -> "re.Match | None":
+        """Match a wake word on word boundaries.
+
+        Substring matching is wrong here: "tenri" appears inside legitimate words
+        such as "Tenriabeng" (a La Galigo character), which would otherwise be
+        misread as a direct call to Tenri. The \b anchors require the wake word to
+        be a standalone token (works for multi-word wakes like "halo tenri" too).
+        """
+        return re.search(rf"\b{re.escape(wake)}\b", lower)
+
     def _contains_phrase(self, text: str, phrases: frozenset[str]) -> str | None:
         norm = self._normalize(text)
         padded = f" {norm} "
@@ -357,7 +368,9 @@ class IntentClassifier:
 
         for wake in sorted(wake_words, key=len, reverse=True):
             wake_norm = self._normalize(wake)
-            if norm.endswith(wake_norm):
+            # Require a word boundary before the wake token: "... tenri" should
+            # match, but a word merely ending in "tenri" should not.
+            if norm == wake_norm or norm.endswith(" " + wake_norm):
                 without_wake = norm[: -len(wake_norm)].strip().rstrip(".!?")
                 if without_wake and _matches(without_wake):
                     return True
@@ -376,7 +389,7 @@ class IntentClassifier:
         lower = text.lower().strip()
         word_count = len(lower.split())
 
-        has_wake_in_text = any(ww in lower for ww in wake_words)
+        has_wake_in_text = any(self._wake_match(lower, ww) for ww in wake_words)
         if (in_conversation or has_wake_in_text) and self._is_closing_phrase(text, closing_phrases, wake_words):
             return IntentResult(
                 Intent.CLOSING_TENRI, text,
@@ -466,9 +479,12 @@ class IntentClassifier:
         )
 
     def _extract_wake_call(self, lower: str, original: str, wake_words: list[str]) -> str | None:
+        # `lower` is text.lower().strip(); align `original` by stripping too so the
+        # regex end offset maps to the same position (lowercasing preserves length).
+        stripped = original.strip()
         for wake in sorted(wake_words, key=len, reverse=True):
-            if wake in lower:
-                idx = lower.find(wake)
-                after = original[idx + len(wake):].strip().lstrip(",. !?")
+            match = self._wake_match(lower, wake)
+            if match:
+                after = stripped[match.end():].strip().lstrip(",. !?")
                 return after
         return None

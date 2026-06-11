@@ -8,10 +8,11 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from app.config import Config
 from app.core.prompt_builder import PromptBuilder
 from app.services.document_loader import DocumentLoader
 from app.services.elevenlabs_service import ElevenLabsService
-from app.services.groq_service import GroqService
+from app.services.llm_factory import build_llm_service
 from app.services.presentation_tracker import PresentationTracker
 from app.services.retrieval import RetrievalService
 from app.services.trigger_service import TriggerService
@@ -214,7 +215,7 @@ def run_rehearsal() -> tuple[str, str]:
     chunks = loader.load_all_documents(force_rechunk=True)
     retrieval = RetrievalService(chunks)
     prompt_builder = PromptBuilder()
-    groq = GroqService()
+    llm = build_llm_service()
     tts = ElevenLabsService()
 
     records = []
@@ -255,7 +256,7 @@ def run_rehearsal() -> tuple[str, str]:
                 context_str=context_str,
                 no_context=not bool(retrieved),
             )
-            raw_response = groq.get_response(messages)
+            raw_response = llm.get_response(messages)
             response, used_fallback = normalize_response(raw_response, cue["slide_id"], cue_index)
             fallback_used = fallback_used or used_fallback
             history.extend(
@@ -296,7 +297,7 @@ def run_rehearsal() -> tuple[str, str]:
         records,
         chunks,
         fallback_used,
-        groq.client is not None,
+        llm.client is not None,
         tts.client is not None,
         audio_count,
     )
@@ -312,10 +313,11 @@ def build_rehearsal_markdown(
     records: list[dict],
     chunks: list[dict],
     fallback_used: bool,
-    groq_ready: bool,
+    llm_ready: bool,
     tts_ready: bool,
     audio_count: int,
 ) -> str:
+    provider = Config.LLM_PROVIDER.upper()
     avg_timing = sum(r["evaluation"]["timing"] for r in records) / len(records)
     avg_relevance = sum(r["evaluation"]["relevance"] for r in records) / len(records)
     avg_length = sum(r["evaluation"]["length"] for r in records) / len(records)
@@ -333,7 +335,7 @@ def build_rehearsal_markdown(
         "",
         "Rehearsal penuh slide 1 sampai 8 sudah dijalankan secara simulatif. Setiap cue presenter diproses dengan konteks slide, trigger, dan knowledge base aktif; slide teknis diuji dengan mode diam agar Tenri tidak mengganggu alur.",
         "",
-        f"- Groq client siap: {'ya' if groq_ready else 'tidak'}",
+        f"- LLM client siap ({provider}): {'ya' if llm_ready else 'tidak'}",
         f"- ElevenLabs client siap: {'ya' if tts_ready else 'tidak'}",
         f"- Fallback respons dipakai: {'ya' if fallback_used else 'tidak'}",
         f"- File audio rehearsal dibuat: {audio_count}",
@@ -346,10 +348,10 @@ def build_rehearsal_markdown(
         "",
         "- Microphone: tidak diuji live dalam runner ini; rehearsal menggunakan cue teks setara push-to-talk.",
         "- Speech-to-text: tidak diuji live dalam runner ini; cue presenter dimasukkan sebagai transkrip bersih.",
-        f"- Groq/LLM: {'digunakan' if groq_ready and not fallback_used else 'fallback sebagian/sepenuhnya digunakan'}",
+        f"- LLM ({provider}): {'digunakan' if llm_ready and not fallback_used else 'fallback sebagian/sepenuhnya digunakan'}",
         f"- ElevenLabs/TTS: {'audio respons dibuat' if audio_count else 'tidak dibuat'} untuk cue non-diam.",
         "- Audio playback: file MP3 dibuat untuk dicek/diputar manual; runner tidak memutar semua audio agar tidak mengganggu sesi kerja.",
-        "- Fallback: tersedia dan digunakan jika Groq offline/error.",
+        f"- Fallback: tersedia dan digunakan jika {provider} offline/error.",
         "",
         "## Catatan Per Slide",
         "",
@@ -459,7 +461,10 @@ def build_priority_markdown(now: datetime, records: list[dict], fallback_used: b
 
     high = []
     if fallback_used:
-        high.append("Pastikan Groq stabil saat rehearsal live; fallback dipakai pada sebagian respons simulasi.")
+        high.append(
+            f"Pastikan {Config.LLM_PROVIDER.upper()} stabil saat rehearsal live; "
+            "fallback dipakai pada sebagian respons simulasi."
+        )
     high.append("Jalankan rehearsal live dengan microphone dan TTS untuk mengukur latensi dan kualitas suara nyata.")
     if any("halusinasi" in issue.lower() or "sumber" in issue.lower() for _, issue in issues):
         high.append("Perkuat grounding pada slide yang menyentuh isi naskah atau klaim arsip.")

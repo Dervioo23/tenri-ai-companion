@@ -36,12 +36,37 @@ from app.services.answer_verifier import AnswerVerifier
 
 logger = logging.getLogger("AICompanion.InteractionLoop")
 
+_SLIDE_EXPLANATION_DEPRIORITIZED_SOURCES: frozenset[str] = frozenset({
+    "tenri-concept",
+    "tursalahjalan-world",
+    "tenri-dialogue-examples",
+})
+
 _QUESTION_SUBSTRINGS: frozenset[str] = frozenset({
     "apa", "kenapa", "mengapa", "bagaimana", "gimana",
     "siapa", "dimana", "kapan", "berapa", "jelaskan",
     "ceritakan", "ketahui", "komentari", "komentar",
     "ulas", "bahas", "tanggapi", "respon", "respons",
 })
+
+# Word-boundary matcher for the question words above. Plain substring matching is
+# wrong: "apa" appears inside "lapangan"/"harapan"/"siapapun", which would falsely
+# flag ambient narration as a question (BUG-03). \b requires whole-token matches.
+_QUESTION_WORD_RE = re.compile(
+    r"\b(?:"
+    + "|".join(sorted((re.escape(w) for w in _QUESTION_SUBSTRINGS), key=len, reverse=True))
+    + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _has_question_word(text: str) -> bool:
+    """True when text contains a '?' or a standalone Indonesian question word."""
+    return "?" in text or bool(_QUESTION_WORD_RE.search(text))
+
+
+# Perintah untuk keluar dari loop interaksi; berlaku di semua mode input (A/B/C).
+_EXIT_COMMANDS: frozenset[str] = frozenset({"exit", "quit", "keluar"})
 
 # Kata penutup yang menutup conversation window setelah Tenri menjawab.
 # Presenter mengucapkan ini untuk memberi tahu Tenri bahwa dialog sudah selesai.
@@ -85,6 +110,11 @@ _FAREWELL_RESPONSES: list[str] = [
 ]
 
 _WAKE_ACK_FALLBACK = "Iye, saya di sini."
+_WAKE_ACK_RESPONSES: tuple[str, ...] = (
+    "Saya dengar.",
+    "Iye, saya di sini.",
+    "Ada, saya dengar.",
+)
 
 _WAKE_ACK_BLOCKLIST_RE = re.compile(
     r"\b(?:"
@@ -233,9 +263,8 @@ class InteractionLoop:
 
     def _build_llm_service(self):
         """Create the configured LLM provider while keeping Groq available for STT."""
-        if Config.LLM_PROVIDER == "gemini":
-            return GeminiService()
-        return self.groq_service
+        from app.services.llm_factory import build_llm_service
+        return build_llm_service(self.groq_service)
 
     def _llm(self):
         """Return active LLM service; fallback keeps older tests and scripts working."""
@@ -368,8 +397,12 @@ class InteractionLoop:
     @staticmethod
     def _input_requests_spoken_response(user_input: str) -> bool:
         """Return True when a slide command also asks Tenri to speak."""
-        lowered = user_input.lower()
-        return "?" in lowered or any(q in lowered for q in _QUESTION_SUBSTRINGS)
+        return _has_question_word(user_input)
+
+    @staticmethod
+    def _is_exit_command(user_input: str) -> bool:
+        """True when the user asked to quit, in any input mode (A/B/C)."""
+        return user_input.strip().lower() in _EXIT_COMMANDS
 
     @staticmethod
     def _is_slide_explanation_request(user_input: str) -> bool:
@@ -395,6 +428,24 @@ class InteractionLoop:
         ]
         query = " ".join(p for p in parts if p).strip()
         return query or fallback
+
+    @staticmethod
+    def _filter_slide_explanation_chunks(chunks: list) -> list:
+        """Prefer slide/topic sources over persona or project-meta documents.
+
+        Persona docs are useful for Tenri's voice, but they pollute "jelaskan
+        slide ini" answers when the active slide already has relevant material.
+        Keep them only as a fallback if no better chunk was retrieved.
+        """
+        if not chunks:
+            return []
+
+        preferred = [
+            chunk for chunk in chunks
+            if str(chunk.get("source_id", "")).lower()
+            not in _SLIDE_EXPLANATION_DEPRIORITIZED_SOURCES
+        ]
+        return preferred or chunks
 
     @staticmethod
     def _live_char_budget(user_input: str) -> int:
@@ -463,21 +514,6 @@ class InteractionLoop:
             return _WAKE_ACK_FALLBACK
 
         return cleaned
-
-    def _extract_wake_call(self, text: str) -> str | None:
-        """Detect a wake word in text and return the query that follows it.
-
-        Returns the query string (may be empty if user only said the wake word),
-        or None if no wake word was found.
-        Sort by length descending so "halo tenri" matches before "tenri".
-        """
-        lowered = text.lower().strip()
-        for wake in sorted(Config.WAKE_WORDS, key=len, reverse=True):
-            if wake in lowered:
-                idx = lowered.find(wake)
-                after = text[idx + len(wake):].strip().lstrip(",. !?")
-                return after
-        return None
 
     def _build_interruption_context(self, topic: str, slide: dict | None) -> tuple[str, bool]:
         """Retrieve knowledge base context for a proactive interruption."""
@@ -592,7 +628,11 @@ class InteractionLoop:
         New phrases are generated and saved so subsequent runs are instant too.
         Thread is daemon so it never blocks shutdown.
         """
-        if not (Config.VOICE_OUTPUT_ENABLED and self.elevenlabs_service.client is not None):
+        if not (
+            Config.TTS_PREWARM_ENABLED
+            and Config.VOICE_OUTPUT_ENABLED
+            and self.elevenlabs_service.client is not None
+        ):
             return
 
         def _generate() -> None:
@@ -636,8 +676,11 @@ class InteractionLoop:
 
         return None
 
-    # Sentence boundary: end of ., !, ? followed by whitespace or end-of-string
-    _SENT_END = re.compile(r'(?<=[.!?])(?:\s+|$)')
+    # Sentence boundary: punctuation followed by whitespace, OR punctuation at the
+    # end of the stream buffer. The end-of-buffer case skips a '.' right after a
+    # digit because it may be an incomplete decimal still streaming in (e.g. "3."
+    # before the "5" of "3.5" arrives) — defer until more text shows up (BUG-16).
+    _SENT_END = re.compile(r'(?<=[.!?])\s+|(?<![0-9]\.)(?<=[.!?])$')
     _SOFT_FIRST_BREAK = re.compile(r"[,;:]\s+|\s+-\s+")
     _SOFT_FIRST_MIN_CHARS = 24
     _HARD_FIRST_MAX_CHARS = 140
@@ -920,16 +963,17 @@ class InteractionLoop:
                                 state_manager.set_state(AppState.IDLE)
                                 time.sleep(0.5)
                                 continue
-                        if user_input.lower() in ['exit', 'quit', 'keluar']:
-                            break
                 else:
                     # Mode C: Teks â€” fallback jika mic tidak tersedia
                     print("\n[Offline Mic] Ketik pesan Anda di bawah:")
                     user_input = input(">> ").strip()
                     if not user_input:
                         continue
-                    if user_input.lower() in ['exit', 'quit', 'keluar']:
-                        break
+
+                # Perintah keluar berlaku untuk semua mode input (push-to-talk,
+                # auto-listen, dan teks) â€” bukan hanya Mode B/C seperti sebelumnya.
+                if self._is_exit_command(user_input):
+                    break
 
                 if not user_input.strip():
                     state_manager.set_state(AppState.IDLE)
@@ -1033,16 +1077,11 @@ class InteractionLoop:
                 if intent_result.was_wake_word:
                     self._quiet_mode = False
 
-                # Hanya wake word tanpa query â†’ buka conversation window, LLM generate greeting.
+                # Hanya wake word tanpa query: jangan panggil LLM/retrieval.
+                # Sapaan harus terasa instan; kecerdasan model baru dipakai saat ada pertanyaan.
                 if intent_result.was_wake_word and not user_input.strip():
                     self._conversation_until = time.monotonic() + Config.CONVERSATION_WINDOW
-                    _greet_messages = self.prompt_builder.build_wake_ack_messages()
-                    state_manager.set_state(AppState.THINKING)
-                    with TerminalUI.get_spinner("Tenri sedang menjawab..."):
-                        if Config.GROQ_STREAMING:
-                            _greeting = self._llm().get_response_streaming(_greet_messages)
-                        else:
-                            _greeting = self._llm().get_response(_greet_messages)
+                    _greeting = random.choice(_WAKE_ACK_RESPONSES)
                     _greeting = self._sanitize_wake_ack_response(_greeting)
                     state_manager.set_state(AppState.SPEAKING)
                     if Config.VOICE_OUTPUT_ENABLED:
@@ -1058,10 +1097,7 @@ class InteractionLoop:
                     state_manager.set_state(AppState.IDLE)
                     continue
 
-                _input_lower = user_input.lower()
-                _has_question = "?" in user_input or any(
-                    q in _input_lower for q in _QUESTION_SUBSTRINGS
-                )
+                _has_question = _has_question_word(user_input)
 
                 # Acknowledgment singkat dalam conversation window â†’ Tenri diam, tidak panggil LLM.
                 # Hanya berlaku jika bukan panggilan wake word langsung dan tidak ada kata tanya.
@@ -1125,6 +1161,13 @@ class InteractionLoop:
                     logger.info(f"QueryRewriter: '{user_input[:50]}' â†’ '{enriched_query[:80]}'")
                 retrieval_started_at = time.monotonic()
                 context_chunks = self.retrieval.search(enriched_query)
+                if is_slide_explanation:
+                    filtered_chunks = self._filter_slide_explanation_chunks(context_chunks)
+                    if len(filtered_chunks) != len(context_chunks):
+                        logger.info(
+                            "Slide explanation retrieval filtered persona/project-meta chunks."
+                        )
+                    context_chunks = filtered_chunks
                 if context_chunks and not self.retrieval.has_strong_match(context_chunks):
                     logger.info("Retrieval discarded: weak query/source overlap.")
                     context_chunks = []
@@ -1180,8 +1223,8 @@ class InteractionLoop:
                         response_text = self._llm().get_response(messages)
                     logger.info(f"Latency llm: {time.monotonic() - llm_started_at:.2f}s")
 
-                response_text = trim_response(response_text, max_sentences=_max_sent)
                 response_text = format_tenri_voice_response(response_text, max_sentences=_max_sent)
+                response_text = trim_response(response_text, max_sentences=_max_sent)
                 response_text = trim_to_character_budget(response_text, _max_chars)
 
                 # Grounding check â€” verify response is supported by retrieved context.
@@ -1221,19 +1264,6 @@ class InteractionLoop:
                 if self.jarvis_ui:
                     self.jarvis_ui.update_response(response_text)
 
-                _cycle_s = round(time.monotonic() - interaction_cycle_started_at, 1)
-                TerminalUI.print_timing_summary(
-                    llm_s=self._last_llm_seconds,
-                    tts_s=self._last_tts_seconds,
-                    cycle_s=_cycle_s,
-                    wait_s=self._last_wait_seconds,
-                    record_s=self._last_record_seconds,
-                    stt_s=self._last_stt_seconds,
-                    retrieval_s=self._last_retrieval_seconds,
-                    first_voice_s=self._last_first_voice_seconds,
-                    audio_playback_s=self._last_audio_playback_seconds,
-                )
-
                 # 6. Non-streaming TTS+playback (streaming menanganinya di dalam _stream_and_speak)
                 if not Config.GROQ_STREAMING:
                     state_manager.set_state(AppState.SPEAKING)
@@ -1263,6 +1293,22 @@ class InteractionLoop:
                         time.sleep(1.5)
                 logger.info(f"Latency response_cycle_total: {time.monotonic() - response_cycle_started_at:.2f}s")
 
+                # Ringkasan timing dicetak SETELAH step 6 agar metrik TTS/FirstVoice/
+                # Audio pada jalur non-streaming sudah terisi (bukan 0). Jalur streaming
+                # mengisi metrik ini di dalam _stream_and_speak sebelum titik ini.
+                _cycle_s = round(time.monotonic() - interaction_cycle_started_at, 1)
+                TerminalUI.print_timing_summary(
+                    llm_s=self._last_llm_seconds,
+                    tts_s=self._last_tts_seconds,
+                    cycle_s=_cycle_s,
+                    wait_s=self._last_wait_seconds,
+                    record_s=self._last_record_seconds,
+                    stt_s=self._last_stt_seconds,
+                    retrieval_s=self._last_retrieval_seconds,
+                    first_voice_s=self._last_first_voice_seconds,
+                    audio_playback_s=self._last_audio_playback_seconds,
+                )
+
                 state_manager.set_state(AppState.IDLE)
 
             except KeyboardInterrupt:
@@ -1289,5 +1335,3 @@ class InteractionLoop:
         
         print("Sampai jumpa. Tenri dinonaktifkan.\n")
         logger.info("Tenri Companion Terminal shut down.")
-
-

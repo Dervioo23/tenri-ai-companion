@@ -25,9 +25,11 @@ def test_parse_invalid_device_index_falls_back_to_default() -> None:
         ("Tendry apa kamu dengar?", "Tenri apa kamu dengar?"),
         ("Ten li bantu saya", "Tenri bantu saya"),
         ("Teneri jawab singkat", "Tenri jawab singkat"),
+        ("Tengri, kamu dengar saya?", "Tenri, kamu dengar saya?"),
         ("Oke Hendri jelaskan arsip ini", "Tenri jelaskan arsip ini"),
         ("Ten ri tolong lanjut", "Tenri tolong lanjut"),
         ("Hendri Hendri", "Tenri"),
+        ("Tenri Tengri", "Tenri"),
         ("Saya mengenal Hendri di luar konteks ini", "Saya mengenal Tenri di luar konteks ini"),
     ],
 )
@@ -83,3 +85,98 @@ def test_cap_audio_for_stt_warns_when_hard_cap_repeats(caplog) -> None:
 
     assert "Repeated STT hard-cap clips" in caplog.text
     speech_service_module._CLIP_EVENT_TIMES.clear()
+
+
+# ------------------------------------------------------------------ ambiguous closing phrase (BUG-02)
+
+import struct
+
+
+def _voiced_audio(seconds: float = 1.0, amplitude: int = 1000, rate: int = 16000) -> sr.AudioData:
+    """Build non-silent AudioData that passes _validate_audio_quality (RMS/duration)."""
+    n = int(rate * seconds)
+    frames = struct.pack(f"<{n}h", *([amplitude] * n))
+    return sr.AudioData(frames, rate, 2)
+
+
+class _Seg:
+    def __init__(self, no_speech_prob: float, avg_logprob: float):
+        self.no_speech_prob = no_speech_prob
+        self.avg_logprob = avg_logprob
+
+
+class _VerboseResult:
+    def __init__(self, text: str, segments: list):
+        self.text = text
+        self.segments = segments
+
+
+class _FakeTranscriptions:
+    def __init__(self, verbose_result=None, verbose_exc=None, text_result=None):
+        self._verbose_result = verbose_result
+        self._verbose_exc = verbose_exc
+        self._text_result = text_result
+
+    def create(self, **kwargs):
+        if kwargs.get("response_format") == "verbose_json":
+            if self._verbose_exc is not None:
+                raise self._verbose_exc
+            return self._verbose_result
+        return self._text_result
+
+
+class _FakeGroqClient:
+    def __init__(self, transcriptions: _FakeTranscriptions):
+        self.audio = type("_A", (), {"transcriptions": transcriptions})()
+
+
+def _service_with_fake_groq(transcriptions: _FakeTranscriptions) -> SpeechService:
+    service = SpeechService()
+    service._groq_client = _FakeGroqClient(transcriptions)
+    return service
+
+
+def test_terima_kasih_kept_when_confident_speech() -> None:
+    """Low no_speech_prob → 'terima kasih' is genuine speech, must pass through (BUG-02)."""
+    fake = _FakeTranscriptions(
+        verbose_result=_VerboseResult("Terima kasih", [_Seg(no_speech_prob=0.1, avg_logprob=-0.2)])
+    )
+    service = _service_with_fake_groq(fake)
+
+    result = service._transcribe_with_groq(_voiced_audio())
+
+    assert result.strip().lower() == "terima kasih"
+
+
+def test_terima_kasih_filtered_when_no_segments() -> None:
+    """No confidence signal (empty segments) → ambiguous phrase filtered as precaution."""
+    fake = _FakeTranscriptions(verbose_result=_VerboseResult("terima kasih", []))
+    service = _service_with_fake_groq(fake)
+
+    with pytest.raises(sr.UnknownValueError):
+        service._transcribe_with_groq(_voiced_audio())
+
+
+def test_terima_kasih_filtered_on_text_format_fallback() -> None:
+    """verbose_json unavailable → text fallback has no confidence → ambiguous phrase filtered."""
+    fake = _FakeTranscriptions(
+        verbose_exc=RuntimeError("verbose_json unsupported"),
+        text_result="terima kasih",
+    )
+    service = _service_with_fake_groq(fake)
+
+    with pytest.raises(sr.UnknownValueError):
+        service._transcribe_with_groq(_voiced_audio())
+
+
+def test_hard_hallucination_filtered_even_when_confident() -> None:
+    """Pure video artifacts ('thanks for watching') stay filtered regardless of confidence."""
+    fake = _FakeTranscriptions(
+        verbose_result=_VerboseResult(
+            "thanks for watching", [_Seg(no_speech_prob=0.1, avg_logprob=-0.2)]
+        )
+    )
+    service = _service_with_fake_groq(fake)
+
+    with pytest.raises(sr.UnknownValueError):
+        service._transcribe_with_groq(_voiced_audio())

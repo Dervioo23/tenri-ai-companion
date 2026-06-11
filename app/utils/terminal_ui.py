@@ -103,7 +103,7 @@ class TerminalUI:
             Text(text, style="bold white"),
             title=f"[bold cyan]Tenri ({name})[/bold cyan]",
             border_style="cyan",
-            subtitle="ElevenLabs TTS Output",
+            subtitle="TTS Output",
             subtitle_align="right",
             box=box.ASCII,
             safe_box=True

@@ -69,7 +69,9 @@ class AnswerVerifier:
     - response_text is empty or already the fallback text
     - response_text starts with "[Offline Mode]" (Groq rate-limit fallback)
 
-    Threshold is set at 0.4 per spec (7.2.3).  Tunable via constructor.
+    Threshold defaults to _GROUNDING_THRESHOLD (0.25) and is tunable via the
+    constructor. A near-grounded relaxation lets responses with >=2 shared terms
+    pass slightly below the threshold (see check()).
     """
 
     def __init__(self, threshold: float = _GROUNDING_THRESHOLD) -> None:

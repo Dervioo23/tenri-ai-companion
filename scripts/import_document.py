@@ -202,8 +202,7 @@ def _read_document(path: Path) -> list[dict]:
             "pdfplumber": "pdfplumber",
         }
         lib = next((v for k, v in lib_map.items() if k in missing), missing)
-        print(f"[ERROR] Library tidak terinstal: pip install {lib}")
-        sys.exit(1)
+        raise ModuleNotFoundError(f"Library tidak terinstal: pip install {lib}") from e
     raise ValueError(f"Format tidak didukung: {ext}")
 
 
@@ -354,20 +353,19 @@ def _clear_indexes() -> int:
 def run(doc_path: Path, presenter_name: str = "", fresh: bool = False) -> None:
     ext = doc_path.suffix.lower()
 
+    # Raise (bukan sys.exit) supaya pemanggil dari menu bisa menangkapnya dan
+    # kembali ke menu. Blok __main__ CLI menerjemahkan exception ke exit code.
     if not doc_path.exists():
-        print(f"[ERROR] File tidak ditemukan: {doc_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"File tidak ditemukan: {doc_path}")
     if ext not in SUPPORTED:
-        print(f"[ERROR] Format tidak didukung: {ext}. Gunakan .pptx, .docx, atau .pdf")
-        sys.exit(1)
+        raise ValueError(f"Format tidak didukung: {ext}. Gunakan .pptx, .docx, atau .pdf")
 
     print(f"\nMembaca: {doc_path.name} ({ext.upper()[1:]}) ...")
 
     sections = _read_document(doc_path)
 
     if not sections:
-        print("[ERROR] Tidak ada konten yang berhasil dibaca dari file.")
-        sys.exit(1)
+        raise ValueError("Tidak ada konten yang berhasil dibaca dari file.")
 
     print(f"  {len(sections)} bagian/halaman ditemukan.")
 
@@ -454,4 +452,8 @@ if __name__ == "__main__":
         help="Nonaktifkan materi lama, hanya gunakan file ini"
     )
     args = parser.parse_args()
-    run(Path(args.file), args.name, args.fresh)
+    try:
+        run(Path(args.file), args.name, args.fresh)
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        sys.exit(1)

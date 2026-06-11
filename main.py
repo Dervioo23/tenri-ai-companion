@@ -1,4 +1,25 @@
+import os
 import sys
+
+
+def _configure_windows_utf8_console() -> None:
+    """Keep Rich box drawing and arrows readable in Windows PowerShell."""
+    if sys.platform != "win32":
+        return
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        os.system("chcp 65001 > nul")
+    except Exception:
+        pass
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_configure_windows_utf8_console()
+
 from app.utils.logger import setup_logger
 from app.core.interaction_loop import InteractionLoop
 
@@ -140,25 +161,47 @@ MENU_OPTIONS = [
 ]
 
 
-def main() -> None:
-    _print_main_header()
-
+def _print_menu() -> None:
     console.print("\n[bold]Menu:[/bold]")
     for i, (label, _) in enumerate(MENU_OPTIONS, 1):
         console.print(f"  [cyan]{i}.[/cyan] {label}")
 
+
+def _prompt_menu_choice() -> int:
+    """Prompt until a valid menu index is chosen. Returns a 0-based index."""
     while True:
-        raw = Prompt.ask("\nPilihan")
+        try:
+            raw = Prompt.ask("\nPilihan")
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Sampai jumpa.[/dim]")
+            sys.exit(0)
         if raw.isdigit() and 1 <= int(raw) <= len(MENU_OPTIONS):
-            break
+            return int(raw) - 1
         console.print("[red]Pilihan tidak valid.[/red]")
 
-    label, action = MENU_OPTIONS[int(raw) - 1]
-    if action is None:
-        console.print("[dim]Sampai jumpa.[/dim]")
-        sys.exit(0)
 
-    action()
+def main() -> None:
+    _print_main_header()
+
+    # Loop kembali ke menu setelah setiap aksi selesai; hanya keluar saat
+    # pengguna memilih "Keluar". Sebelumnya menu hanya berjalan sekali sehingga
+    # mengimpor materi lalu menjalankan Tenri butuh restart aplikasi.
+    while True:
+        _print_menu()
+        label, action = MENU_OPTIONS[_prompt_menu_choice()]
+
+        if action is None:
+            console.print("[dim]Sampai jumpa.[/dim]")
+            return
+
+        try:
+            action()
+        except KeyboardInterrupt:
+            # _run_tenri menangani Ctrl+C-nya sendiri (sys.exit); aksi lain yang
+            # dibatalkan dengan Ctrl+C cukup kembali ke menu.
+            console.print("\n[dim]Dibatalkan. Kembali ke menu.[/dim]")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
 
 
 if __name__ == "__main__":

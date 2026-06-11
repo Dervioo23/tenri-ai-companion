@@ -226,8 +226,8 @@ Di VS Code, klik file `.env` di sidebar kiri. Isinya sudah ada templatenya.
 Ganti nilai yang kosong atau default dengan milik Anda:
 
 ```
-GROQ_API_KEY=gsk_xxx_isi_api_key_groq_anda_di_sini
-ELEVENLABS_API_KEY=sk_xxx_isi_api_key_elevenlabs_anda_di_sini
+GROQ_API_KEY=your_groq_api_key_here
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 ELEVENLABS_VOICE_ID=isi_voice_id_di_sini
 ```
 
@@ -735,10 +735,10 @@ python -m pytest tests/ -v
 
 ```
 # ─── API Keys ─────────────────────────────────────────────────────────────
-GROQ_API_KEY=          # Wajib: dari console.groq.com
+GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=llama-3.3-70b-versatile    # Model LLM Groq
 GROQ_STT_MODEL=whisper-large-v3-turbo # Model STT Groq
-ELEVENLABS_API_KEY=    # Wajib: dari elevenlabs.io
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 ELEVENLABS_VOICE_ID=   # Wajib: ID suara dari dashboard ElevenLabs
 ELEVENLABS_MODEL=eleven_turbo_v2_5    # Model TTS (paling cepat)
 

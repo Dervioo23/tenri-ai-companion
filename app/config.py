@@ -37,6 +37,7 @@ class Config:
     ACTIVE_LLM_MODEL = GEMINI_MODEL if LLM_PROVIDER == "gemini" else GROQ_MODEL
     
     ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+    ELEVENLABS_ENABLED = os.getenv("ELEVENLABS_ENABLED", "true").strip().lower() == "true"
     ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM").strip()
     # eleven_flash_v2_5 = fastest low-latency model for live voice.
     # eleven_multilingual_v2 = higher quality but slower.
@@ -47,9 +48,17 @@ class Config:
     ELEVENLABS_STABILITY = _get_float("ELEVENLABS_STABILITY", 0.5)
     ELEVENLABS_SIMILARITY_BOOST = _get_float("ELEVENLABS_SIMILARITY_BOOST", 0.65)
     ELEVENLABS_USE_SPEAKER_BOOST = os.getenv("ELEVENLABS_USE_SPEAKER_BOOST", "false").strip().lower() == "true"
+    ELEVENLABS_CONNECT_TIMEOUT = _get_float("ELEVENLABS_CONNECT_TIMEOUT", 4.0)
+    ELEVENLABS_READ_TIMEOUT = _get_float("ELEVENLABS_READ_TIMEOUT", 12.0)
+    ELEVENLABS_CIRCUIT_BREAKER_SECONDS = _get_float("ELEVENLABS_CIRCUIT_BREAKER_SECONDS", 60.0)
+    TTS_PREWARM_ENABLED = os.getenv("TTS_PREWARM_ENABLED", "false").strip().lower() == "true"
     
     # App General settings
     APP_LANGUAGE = os.getenv("APP_LANGUAGE", "id").strip().lower()
+    # Recognized single-language ISO 639-1 hints. "bilingual" is an auto mode:
+    # TTS sends no language_code (multilingual model auto-detects) and STT uses the
+    # Indonesian-first default. Unknown values are treated like "bilingual".
+    _SUPPORTED_LANGUAGES = frozenset({"id", "en"})
     
     # Feature Toggles
     VOICE_INPUT_ENABLED = os.getenv("VOICE_INPUT_ENABLED", "false").strip().lower() == "true"
@@ -78,9 +87,14 @@ class Config:
     LIVE_RESPONSE_MODE = os.getenv("LIVE_RESPONSE_MODE", "false").strip().lower() == "true"
     # True = use a compact system prompt for voice/live turns.
     LIVE_PROMPT_MODE = os.getenv("LIVE_PROMPT_MODE", "false").strip().lower() == "true"
+    # True = safer defaults for live demos: stricter mic gate and shorter recordings.
+    DEMO_SAFE_MODE = os.getenv("DEMO_SAFE_MODE", "true").strip().lower() == "true"
     # Local TTS (edge-tts) — fallback saat ElevenLabs tidak tersedia
     # Requires: pip install edge-tts  (tanpa model download, gratis, butuh internet)
     LOCAL_TTS_ENABLED = os.getenv("LOCAL_TTS_ENABLED", "false").strip().lower() == "true"
+    LOCAL_TTS_ENGINE = os.getenv("LOCAL_TTS_ENGINE", "auto").strip().lower()
+    LOCAL_TTS_TIMEOUT_SECONDS = _get_float("LOCAL_TTS_TIMEOUT_SECONDS", 8.0)
+    LOCAL_TTS_SAPI_VOICE = os.getenv("LOCAL_TTS_SAPI_VOICE", "").strip()
     # Suara Indonesia: id-ID-GadisNeural (perempuan) / id-ID-ArdiNeural (laki-laki)
     LOCAL_TTS_VOICE = os.getenv("LOCAL_TTS_VOICE", "id-ID-GadisNeural").strip()
     # True = BackgroundListener aktif (continuous capture + IntentClassifier routing)
@@ -95,9 +109,12 @@ class Config:
     
     # Speech settings
     MIC_DEVICE_INDEX = os.getenv("MIC_DEVICE_INDEX", "").strip()
-    # 650 is safer for live demos with speaker output in the same room.
+    # 800 is safer for live demos with speaker output in the same room.
     # Lower values make Tenri more likely to hear room noise or her own TTS.
-    SPEECH_ENERGY_THRESHOLD = _get_int("SPEECH_ENERGY_THRESHOLD", 650)
+    _SAFE_SPEECH_ENERGY_THRESHOLD = 800 if DEMO_SAFE_MODE else 700
+    _SAFE_SPEECH_PHRASE_TIME_LIMIT = 6.0 if DEMO_SAFE_MODE else 8.0
+    _SAFE_STT_AUDIO_HARD_LIMIT = 6.0 if DEMO_SAFE_MODE else 8.0
+    SPEECH_ENERGY_THRESHOLD = _get_int("SPEECH_ENERGY_THRESHOLD", _SAFE_SPEECH_ENERGY_THRESHOLD)
     SPEECH_DYNAMIC_ENERGY = os.getenv("SPEECH_DYNAMIC_ENERGY", "true").strip().lower() == "true"
     # STT engine: "groq" uses Groq Whisper (more accurate), "google" uses Google Speech Recognition
     SPEECH_STT_ENGINE = os.getenv("SPEECH_STT_ENGINE", "groq").strip().lower()
@@ -108,8 +125,8 @@ class Config:
     SPEECH_PHRASE_THRESHOLD = _get_float("SPEECH_PHRASE_THRESHOLD", 0.45)
     SPEECH_NON_SPEAKING_DURATION = _get_float("SPEECH_NON_SPEAKING_DURATION", 0.5)
     SPEECH_TIMEOUT = _get_float("SPEECH_TIMEOUT", _get_float("SPEECH_TIMEOUT_SECONDS", 7.0))
-    SPEECH_PHRASE_TIME_LIMIT = _get_float("SPEECH_PHRASE_TIME_LIMIT", 8.0)
-    SPEECH_STT_AUDIO_HARD_LIMIT = _get_float("SPEECH_STT_AUDIO_HARD_LIMIT", 8.0)
+    SPEECH_PHRASE_TIME_LIMIT = _get_float("SPEECH_PHRASE_TIME_LIMIT", _SAFE_SPEECH_PHRASE_TIME_LIMIT)
+    SPEECH_STT_AUDIO_HARD_LIMIT = _get_float("SPEECH_STT_AUDIO_HARD_LIMIT", _SAFE_STT_AUDIO_HARD_LIMIT)
     SPEECH_AMBIENT_NOISE_DURATION = _get_float("SPEECH_AMBIENT_NOISE_DURATION", 0.8)
     AUDIO_PLAYBACK_TIMEOUT = _get_float("AUDIO_PLAYBACK_TIMEOUT", 60.0)
     
@@ -126,13 +143,32 @@ class Config:
     SNAPSHOTS_DIR = ASSETS_DIR / "images" / "camera_snapshots"
 
     @classmethod
+    def tts_language_code(cls) -> str | None:
+        """ISO 639-1 code to send to ElevenLabs, or None to let the multilingual
+        model auto-detect. 'bilingual'/unknown -> None so the request is not
+        rejected with HTTP 400 and all audio silenced (BUG-07)."""
+        return cls.APP_LANGUAGE if cls.APP_LANGUAGE in cls._SUPPORTED_LANGUAGES else None
+
+    @classmethod
+    def stt_language_code(cls) -> str:
+        """Primary language hint for STT. Whisper/Google accept one language; an
+        Indonesian-first app maps 'bilingual'/unknown to 'id' instead of 'en'."""
+        return "en" if cls.APP_LANGUAGE == "en" else "id"
+
+    @classmethod
     def validate_critical_configs(cls):
         """Validate crucial configurations and raise descriptive warnings or errors."""
         warnings = []
         errors = []
-        
+
         if cls.LLM_PROVIDER not in {"groq", "gemini"}:
             errors.append("LLM_PROVIDER must be either 'groq' or 'gemini'.")
+
+        if cls.APP_LANGUAGE not in (cls._SUPPORTED_LANGUAGES | {"bilingual"}):
+            warnings.append(
+                f"APP_LANGUAGE='{cls.APP_LANGUAGE}' tidak dikenal. Gunakan 'id', 'en', "
+                "atau 'bilingual'. Tenri memakai mode auto (TTS auto-detect, STT Indonesia)."
+            )
 
         if cls.LLM_PROVIDER == "groq" and not cls.GROQ_API_KEY:
             warnings.append("GROQ_API_KEY is missing. Tenri will run in offline/mock text mode until you add it.")
@@ -143,7 +179,16 @@ class Config:
         if cls.SPEECH_STT_ENGINE == "groq" and not cls.GROQ_API_KEY:
             warnings.append("GROQ_API_KEY is missing for Groq Whisper STT. Switch SPEECH_STT_ENGINE=google or add a Groq key.")
             
-        if cls.VOICE_OUTPUT_ENABLED and not cls.ELEVENLABS_API_KEY:
-            warnings.append("ELEVENLABS_API_KEY is missing. Audio responses will be disabled (text-only mode).")
+        if cls.VOICE_OUTPUT_ENABLED and cls.ELEVENLABS_ENABLED and not cls.ELEVENLABS_API_KEY:
+            warnings.append(
+                "ELEVENLABS_API_KEY is missing. ElevenLabs cloud TTS will be skipped; "
+                "local TTS fallback can still be used if LOCAL_TTS_ENABLED=true."
+            )
+
+        if cls.VOICE_OUTPUT_ENABLED and not cls.ELEVENLABS_ENABLED and not cls.LOCAL_TTS_ENABLED:
+            warnings.append(
+                "VOICE_OUTPUT_ENABLED=true but ElevenLabs and local TTS are both disabled. "
+                "Tenri will show text without voice."
+            )
             
         return errors, warnings

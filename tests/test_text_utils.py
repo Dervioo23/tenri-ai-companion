@@ -177,6 +177,32 @@ class TestFormatTenriVoiceResponse:
             "mengenali pola, mengambil keputusan, dan memahami bahasa."
         )
 
+    def test_merges_adalah_sentence_fragment(self):
+        text = (
+            "Kecerdasan Buatan, atau Artificial Intelligence. "
+            "Adalah kemampuan mesin meniru fungsi kognitif manusia."
+        )
+
+        result = format_tenri_voice_response(text)
+
+        assert result == (
+            "Kecerdasan Buatan, atau Artificial Intelligence, "
+            "adalah kemampuan mesin meniru fungsi kognitif manusia."
+        )
+
+    def test_rewrites_slide_reader_opening(self):
+        text = (
+            "Slide ini membuka konsep dasar mengenal kecerdasan buatan. "
+            "AI membaca pola dari data, bukan berpikir seperti manusia."
+        )
+
+        result = format_tenri_voice_response(text, max_sentences=2)
+
+        assert result == (
+            "Konsep dasarnya adalah mengenal kecerdasan buatan. "
+            "AI membaca pola dari data, bukan berpikir seperti manusia."
+        )
+
     def test_drops_slide_title_and_agenda_opening(self):
         text = (
             "Mengenal Kecerdasan Buatan. "

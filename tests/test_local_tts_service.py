@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.local_tts_service import LocalTTSService
@@ -8,6 +7,9 @@ def make_service(available: bool = True, voice: str = "id-ID-GadisNeural") -> Lo
     service = LocalTTSService.__new__(LocalTTSService)
     service.available = available
     service._voice = voice
+    service._engine = "edge"
+    service._sapi_available = False
+    service._edge_available = available
     return service
 
 
@@ -30,16 +32,30 @@ def test_local_tts_ready_when_edge_tts_importable() -> None:
     ):
         service.__init__()
     assert service.available is True
+    assert service._edge_available is True
 
 
 def test_local_tts_unavailable_when_edge_tts_not_installed() -> None:
     service = LocalTTSService.__new__(LocalTTSService)
     with (
         patch("app.services.local_tts_service.Config.LOCAL_TTS_ENABLED", True),
+        patch("app.services.local_tts_service.sys.platform", "linux"),
         patch.dict("sys.modules", {"edge_tts": None}),
     ):
         service.__init__()
     assert service.available is False
+
+
+def test_local_tts_ready_on_windows_even_without_edge_tts() -> None:
+    service = LocalTTSService.__new__(LocalTTSService)
+    with (
+        patch("app.services.local_tts_service.Config.LOCAL_TTS_ENABLED", True),
+        patch("app.services.local_tts_service.sys.platform", "win32"),
+        patch.dict("sys.modules", {"edge_tts": None}),
+    ):
+        service.__init__()
+    assert service.available is True
+    assert service._sapi_available is True
 
 
 def test_local_tts_voice_defaults_to_gadis_neural() -> None:
@@ -140,3 +156,36 @@ def test_synthesize_returns_none_on_exception(tmp_path) -> None:
         result = service.synthesize("Halo Tenri")
 
     assert result is None
+
+
+def test_synthesize_prefers_sapi_in_auto_mode(tmp_path) -> None:
+    service = make_service(available=True)
+    service._engine = "auto"
+    service._sapi_available = True
+    service._edge_available = True
+
+    with (
+        patch.object(service, "_synthesize_sapi", return_value=str(tmp_path / "sapi.wav")) as sapi,
+        patch.object(service, "_synthesize_edge", return_value=str(tmp_path / "edge.mp3")) as edge,
+    ):
+        result = service.synthesize("Halo Tenri")
+
+    assert result.endswith("sapi.wav")
+    sapi.assert_called_once_with("Halo Tenri")
+    edge.assert_not_called()
+
+
+def test_synthesize_auto_falls_back_to_edge_when_sapi_fails(tmp_path) -> None:
+    service = make_service(available=True)
+    service._engine = "auto"
+    service._sapi_available = True
+    service._edge_available = True
+
+    with (
+        patch.object(service, "_synthesize_sapi", return_value=None),
+        patch.object(service, "_synthesize_edge", return_value=str(tmp_path / "edge.mp3")) as edge,
+    ):
+        result = service.synthesize("Halo Tenri")
+
+    assert result.endswith("edge.mp3")
+    edge.assert_called_once_with("Halo Tenri")
