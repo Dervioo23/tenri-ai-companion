@@ -689,14 +689,14 @@ Materi awal untuk demo:
 - `app/knowledge/project_notes/tenri_concept.md`
 - `app/knowledge/project_notes/tursalahjalan_world.md`
 - `app/knowledge/archives/archive_memory_notes.md`
-- `app/knowledge/presentation/demo_outline.md`
+- `app/knowledge/presentations/demo_outline.md`
 
 #### Hasil Eksekusi Hari 5
 
 Status:
 
 - Struktur `app/knowledge/` sudah dibuat.
-- Subfolder `books/`, `archives/`, `papers/`, `project_notes/`, `presentation/`, `inbox/`, dan `indexes/` sudah tersedia.
+- Subfolder `books/`, `archives/`, `papers/`, `project_notes/`, `presentations/`, `inbox/`, dan `indexes/` sudah tersedia.
 - `sources.json` sudah dibuat sebagai metadata pusat.
 - Empat sumber awal demo sudah dibuat dan berstatus `active`.
 - Script otomasi `scripts/manage_knowledge.py` sudah dibuat.
@@ -714,7 +714,7 @@ File dan folder yang dibuat:
 - `app/knowledge/project_notes/tenri_concept.md`
 - `app/knowledge/project_notes/tursalahjalan_world.md`
 - `app/knowledge/archives/archive_memory_notes.md`
-- `app/knowledge/presentation/demo_outline.md`
+- `app/knowledge/presentations/demo_outline.md`
 - `scripts/__init__.py`
 - `scripts/manage_knowledge.py`
 - `tests/test_manage_knowledge.py`
@@ -1050,15 +1050,13 @@ ai-companion-terminal/
 |   |   |-- papers/
 |   |   |-- archives/
 |   |   |-- project_notes/
-|   |   |-- presentation/
+|   |   |-- presentations/
 |   |   |-- indexes/
 |   |-- presentation/
 |   |   |-- slides.json
 |   |   |-- presenter_notes.md
 |   |   |-- triggers.json
 |   |-- data/
-|   |   |-- conversation_history.json
-|   |   |-- session_log.txt
 |   |   |-- retrieval_log.json
 |   |   |-- logs/
 |   |-- utils/

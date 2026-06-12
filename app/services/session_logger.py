@@ -3,16 +3,16 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from app.config import BASE_DIR
+from app.config import Config
 
 logger = logging.getLogger("AICompanion.SessionLogger")
 
-LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR = Config.LOGS_DIR
 
 
 class SessionLogger:
     def __init__(self):
-        LOGS_DIR.mkdir(exist_ok=True)
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._path: Path = LOGS_DIR / f"session_{timestamp}.jsonl"
         logger.info(f"Session log: {self._path}")

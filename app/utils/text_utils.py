@@ -1,11 +1,10 @@
-﻿import re
+import re
 
-# Split only on sentence-ending punctuation that is NOT preceded by a digit.
-# This prevents "1.", "2.", "3." in numbered lists from being treated as boundaries.
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[!?])\s+|(?<=\D\.)\s+")
-
-# Deteksi sisa penanda list bernomor di akhir hasil trim (contoh: "... dijelaskan: 1.")
-_TRAILING_LIST_ITEM_RE = re.compile(r"\s+\d+\.?\s*$")
+# Sentence punctuation followed by whitespace is a real boundary, including
+# sentences ending in a number ("tahun 2024. Berikutnya..."). Decimal/version
+# dots remain safe because they are followed immediately by another digit, not
+# whitespace ("3.5", "v1.0.0"). Numbered-list residue is cleaned separately.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 _LEADING_AI_FILLER_RE = re.compile(
     r"^\s*(?:"
@@ -38,7 +37,7 @@ _AI_PHRASE_REPLACEMENTS = (
     (re.compile(r"\bnamun demikian\b", re.IGNORECASE), "tapi"),
 )
 
-_MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*â€¢]+|\d+[.)])\s+")
+_MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*•]+|\d+[.)])\s+")
 _MULTISPACE_RE = re.compile(r"\s+")
 
 _STERILE_CLOSING_RE = re.compile(
@@ -176,17 +175,13 @@ def _drop_slide_reading_sentences(sentences: list[str]) -> list[str]:
 def trim_response(text: str, max_sentences: int = 3) -> str:
     """Trim text to at most max_sentences sentences.
 
-    Splits on sentence-ending punctuation followed by whitespace.
-    Digit-period sequences (numbered list items) are NOT treated as boundaries
-    so responses like "Ada tiga konsep: 1. AI ... 2. ML ..." are not cut mid-list.
+    Splits on sentence-ending punctuation followed by whitespace. Decimal and
+    version dots are not boundaries because no whitespace follows those dots.
     """
     if not text:
         return text
     sentences = _SENTENCE_SPLIT_RE.split(text.strip())
-    trimmed = " ".join(sentences[:max_sentences])
-    # Buang penanda list yang menggantung di akhir
-    trimmed = _TRAILING_LIST_ITEM_RE.sub("", trimmed).strip()
-    return trimmed
+    return " ".join(sentences[:max_sentences]).strip()
 
 
 def trim_to_character_budget(text: str, max_chars: int = 0) -> str:
@@ -264,7 +259,7 @@ def format_tenri_voice_response(text: str, max_sentences: int | None = None) -> 
         return stripped
 
     humanized = humanize_tenri_response(stripped)
-    spoken_text = re.sub(r"(^|\s)(?:[-*â€¢]+|\d+[.)])\s+", r"\1", humanized)
+    spoken_text = re.sub(r"(^|\s)(?:[-*•]+|\d+[.)])\s+", r"\1", humanized)
     sentences = [_clean_spoken_sentence(s) for s in _sentence_split(spoken_text)]
     sentences = _drop_slide_reading_sentences(sentences)
     sentences = _merge_sentence_fragments(sentences)
@@ -284,4 +279,3 @@ def format_tenri_voice_response(text: str, max_sentences: int | None = None) -> 
     result = " ".join(sentences)
     result = _MULTISPACE_RE.sub(" ", result).strip()
     return result or humanized
-

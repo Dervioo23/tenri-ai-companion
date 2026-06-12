@@ -1,4 +1,4 @@
-﻿import io
+import io
 import logging
 import math
 import re
@@ -75,7 +75,7 @@ _TENRI_ANYWHERE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Kamus koreksi istilah domain: Whisper salah dengar â†’ bentuk kanonik.
+# Kamus koreksi istilah domain: Whisper salah dengar → bentuk kanonik.
 # Kunci: huruf kecil semua (matching case-insensitive), nilai: bentuk yang benar.
 # Diurutkan panjang descending agar frasa panjang dicocokan duluan sebelum frasa pendek
 # yang bisa jadi subfrasa-nya (contoh: "saweri gading" sebelum "gading").
@@ -85,7 +85,7 @@ _DOMAIN_GLOSSARY: dict[str, str] = {
     "jelas cat": "jelaskan",
     "jelas ket": "jelaskan",
     "jelas ke": "jelaskan",
-    # La Galigo â€” naskah epos Bugis-Makassar
+    # La Galigo — naskah epos Bugis-Makassar
     "la gaigo": "La Galigo",
     "la galligo": "La Galigo",
     "la goligo": "La Galigo",
@@ -94,23 +94,23 @@ _DOMAIN_GLOSSARY: dict[str, str] = {
     "la gali go": "La Galigo",
     "lagaligo": "La Galigo",
     "ela galigo": "I La Galigo",
-    # Sawerigading â€” tokoh utama La Galigo
+    # Sawerigading — tokoh utama La Galigo
     "sawe rigading": "Sawerigading",
     "saweri gading": "Sawerigading",
     "sawerigadig": "Sawerigading",
     "sawe ri gading": "Sawerigading",
     "saueri gading": "Sawerigading",
-    # tursalahjalan â€” nama proyek
+    # tursalahjalan — nama proyek
     "tursa la jalan": "tursalahjalan",
     "tursa lah jalan": "tursalahjalan",
     "tursalah jalan": "tursalahjalan",
-    # Lontara â€” aksara Bugis-Makassar
+    # Lontara — aksara Bugis-Makassar
     "lon tara": "lontara",
     "lontaraq": "lontara",
     # Kota
     "makasar": "Makassar",
     "macassar": "Makassar",
-    # We Tenriabeng â€” tokoh dalam La Galigo
+    # We Tenriabeng — tokoh dalam La Galigo
     "we tenri abeng": "We Tenriabeng",
 }
 
@@ -142,7 +142,7 @@ class SpeechService:
         self.last_transcribe_seconds: float = 0.0
         self.last_ambient_seconds: float = 0.0
 
-        # Groq Whisper client â€” initialized if engine is "groq" and key is available
+        # Groq Whisper client — initialized if engine is "groq" and key is available
         self._groq_client = None
         if Config.SPEECH_STT_ENGINE == "groq" and Config.GROQ_API_KEY:
             try:
@@ -175,7 +175,7 @@ class SpeechService:
 
             self.microphone_available = True
             engine_label = "Groq Whisper" if self._groq_client else "Google STT"
-            logger.info(f"Speech recognition ready â€” engine: {engine_label}.")
+            logger.info(f"Speech recognition ready — engine: {engine_label}.")
         except Exception as e:
             logger.warning(
                 f"Microphone not available or PyAudio not installed: {e}. Fallback to text input."
@@ -268,7 +268,7 @@ class SpeechService:
             normalized,
             flags=re.IGNORECASE,
         )
-        # Fix misspellings of Tenri anywhere in the sentence ("oke lanjut Tendi" â†’ "... Tenri")
+        # Fix misspellings of Tenri anywhere in the sentence ("oke lanjut Tendi" → "... Tenri")
         normalized = _TENRI_ANYWHERE_PATTERN.sub("Tenri", normalized)
         # Koreksi istilah domain proyek (La Galigo, Sawerigading, tursalahjalan, dst.)
         normalized = SpeechService._apply_domain_glossary(normalized)
@@ -281,8 +281,8 @@ class SpeechService:
         """Collapse Whisper hallucination loops into the first occurrence.
 
         Handles two patterns:
-        1. Comma-separated: "buk, buk, buk" â†’ "buk"
-        2. Space-separated phrase: "oke lanjut tenri oke lanjut tenri" â†’ "oke lanjut tenri"
+        1. Comma-separated: "buk, buk, buk" → "buk"
+        2. Space-separated phrase: "oke lanjut tenri oke lanjut tenri" → "oke lanjut tenri"
 
         Whisper (especially turbo) repeats phrases when audio has gema/echo,
         is too long, or has brief silence gaps within a single utterance.
@@ -299,11 +299,11 @@ class SpeechService:
                     unique.append(seg)
             if len(unique) < len(segments):
                 cleaned = ", ".join(unique)
-                logger.info(f"Removed comma-repetition: {len(segments)} â†’ {len(unique)} segments.")
+                logger.info(f"Removed comma-repetition: {len(segments)} → {len(unique)} segments.")
                 return cleaned
 
         # Pattern 2: space-separated phrase repetitions
-        # e.g. "oke lanjut tenri oke lanjut tenri oke lanjut tenri" â†’ "oke lanjut tenri"
+        # e.g. "oke lanjut tenri oke lanjut tenri oke lanjut tenri" → "oke lanjut tenri"
         words = text.strip().split()
         n = len(words)
         if n >= 4:
@@ -319,7 +319,7 @@ class SpeechService:
                         break
                 if repeat_count >= 2 and i == n:
                     deduped = " ".join(words[:phrase_len])
-                    logger.info(f"Removed phrase-repetition: {repeat_count}Ã— â†’ 1Ã—: {repr(deduped)}")
+                    logger.info(f"Removed phrase-repetition: {repeat_count}× → 1×: {repr(deduped)}")
                     return deduped
 
         return text
@@ -329,14 +329,14 @@ class SpeechService:
         """Reject audio that is too short or too silent to contain real speech.
 
         Runs BEFORE any API call to Groq. This is the primary hallucination
-        prevention layer â€” bad audio is blocked here so Whisper never sees it.
+        prevention layer — bad audio is blocked here so Whisper never sees it.
 
-        Why duration â‰¥ 0.5s: SPEECH_PAUSE_THRESHOLD (default 1.1) makes the recognizer
+        Why duration ≥ 0.5s: SPEECH_PAUSE_THRESHOLD (default 1.1) makes the recognizer
         append trailing silence after speech, so a real utterance is well over
         0.5s. Captures shorter than 0.5s are silence bursts or noise spikes that
         somehow passed the energy gate.
 
-        Why RMS â‰¥ 150: real speech in a quiet room produces RMS well above 500.
+        Why RMS ≥ 150: real speech in a quiet room produces RMS well above 500.
         RMS below 150 means the audio is effectively silent.
         """
         wav_bytes = audio.get_wav_data()
@@ -353,10 +353,10 @@ class SpeechService:
         logger.info(f"Audio quality: duration={duration:.2f}s  RMS={rms:.0f}")
 
         if duration < 0.5:
-            logger.info("Pre-filter: audio too short â€” skipping transcription.")
+            logger.info("Pre-filter: audio too short — skipping transcription.")
             raise sr.UnknownValueError()
         if rms < 150:
-            logger.info(f"Pre-filter: audio too quiet (RMS={rms:.0f}) â€” skipping transcription.")
+            logger.info(f"Pre-filter: audio too quiet (RMS={rms:.0f}) — skipping transcription.")
             raise sr.UnknownValueError()
 
     def _transcribe_with_groq(self, audio: sr.AudioData) -> str:
@@ -366,7 +366,7 @@ class SpeechService:
         filtering out hallucinations produced from silence or background noise.
         Falls back to text format if verbose_json is unavailable.
         """
-        # Block noise/silence BEFORE sending to API â€” prevents Whisper hallucinations
+        # Block noise/silence BEFORE sending to API — prevents Whisper hallucinations
         # at the source, not after the fact.
         audio = self.cap_audio_for_stt(audio)
         self._validate_audio_quality(audio)
@@ -400,7 +400,7 @@ class SpeechService:
             # Check no_speech_prob across all segments
             segments = getattr(result, "segments", None) or []
             if not segments:
-                logger.warning("Groq verbose_json returned no segments â€” confidence filters skipped.")
+                logger.warning("Groq verbose_json returned no segments — confidence filters skipped.")
             if segments:
                 probs = []
                 logprobs = []
@@ -432,7 +432,7 @@ class SpeechService:
                     if avg_logprob < -1.0:
                         logger.info(
                             f"Low-confidence transcription (avg_logprob={avg_logprob:.3f})"
-                            " â€” treating as noise."
+                            " — treating as noise."
                         )
                         raise sr.UnknownValueError()
             text = (getattr(result, "text", None) or "").strip()
@@ -472,7 +472,7 @@ class SpeechService:
         norm_words = [w for w in norm_words if w]
 
         if norm_words:
-            # Single word â‰¤4 chars not in valid whitelist â†’ noise
+            # Single word ≤4 chars not in valid whitelist → noise
             if (
                 len(norm_words) == 1
                 and len(norm_words[0]) <= 4
@@ -565,7 +565,7 @@ class SpeechService:
                     transcription = self._transcribe_with_groq(audio)
                     engine_used = "Groq Whisper"
                 except sr.UnknownValueError:
-                    raise  # silence/noise detected by Groq â€” don't fall back, just report as unrecognized
+                    raise  # silence/noise detected by Groq — don't fall back, just report as unrecognized
                 except Exception as e:
                     logger.warning(f"Groq Whisper API error ({e}), falling back to Google STT.")
                     transcription = self._transcribe_with_google(audio)

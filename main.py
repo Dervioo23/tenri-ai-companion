@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 
 
 def _configure_windows_utf8_console() -> None:
@@ -22,6 +23,7 @@ _configure_windows_utf8_console()
 
 from app.utils.logger import setup_logger
 from app.core.interaction_loop import InteractionLoop
+from app.config import Config
 
 from rich.console import Console
 from rich.panel import Panel
@@ -42,23 +44,64 @@ def _print_main_header() -> None:
 
 def _run_tenri() -> None:
     setup_logger()
+    errors, _warnings = Config.validate_critical_configs()
+    if errors:
+        console.print("\n[bold red]Konfigurasi Tenri tidak valid.[/bold red]")
+        for error in errors:
+            console.print(f"  [red]- {error}[/red]")
+        console.print("[dim]Tidak ada UI, microphone, kamera, atau TTS yang diinisialisasi.[/dim]")
+        return
+
     jarvis_ui = None
+    loop = None
+    interaction_thread = None
+    worker_errors: list[Exception] = []
     try:
         from app.ui.jarvis_display import JarvisDisplay
         jarvis_ui = JarvisDisplay()
-        jarvis_ui.start()
-
         loop = InteractionLoop(jarvis_ui=jarvis_ui)
-        loop.run()
+
+        def _run_interaction() -> None:
+            try:
+                loop.run()
+            except Exception as error:
+                worker_errors.append(error)
+            finally:
+                jarvis_ui.stop()
+
+        interaction_thread = threading.Thread(
+            target=_run_interaction,
+            daemon=True,
+            name="TenriInteractionLoop",
+        )
+        interaction_thread.start()
+
+        # Pygame display/event pump must stay on the process main thread.
+        jarvis_ui.start(on_quit=loop.request_stop)
+        loop.request_stop()
+        interaction_thread.join(timeout=15.0)
+        if interaction_thread.is_alive():
+            console.print(
+                "[yellow]Tenri masih menunggu operasi input selesai; "
+                "worker akan dihentikan saat proses keluar.[/yellow]"
+            )
+        if worker_errors:
+            raise worker_errors[0]
     except KeyboardInterrupt:
-        console.print("\n[dim]Aplikasi dihentikan oleh pengguna.[/dim]")
-        sys.exit(0)
-    except Exception as e:
-        console.print(f"[red]Kritikal:[/red] Gagal menjalankan aplikasi: {e}")
-        sys.exit(1)
-    finally:
+        if loop:
+            loop.request_stop()
         if jarvis_ui:
             jarvis_ui.stop()
+        console.print("\n[dim]Aplikasi dihentikan oleh pengguna.[/dim]")
+    except Exception as e:
+        console.print(f"[red]Kritikal:[/red] Gagal menjalankan aplikasi: {e}")
+    finally:
+        if loop:
+            loop.request_stop()
+        if jarvis_ui:
+            jarvis_ui.stop()
+        if interaction_thread and interaction_thread.is_alive():
+            interaction_thread.join(timeout=15.0)
 
 
 def _run_knowledge_manager() -> None:

@@ -1,8 +1,8 @@
 import json
-import pytest
 from unittest.mock import patch
 from pathlib import Path
-from app.services.session_logger import SessionLogger
+from app.config import Config
+from app.services.session_logger import LOGS_DIR, SessionLogger
 
 
 def make_logger(tmp_path):
@@ -11,6 +11,9 @@ def make_logger(tmp_path):
 
 
 class TestSessionLoggerInit:
+    def test_default_log_directory_matches_application_logs(self):
+        assert LOGS_DIR == Config.LOGS_DIR
+
     def test_creates_log_file_directory(self, tmp_path):
         log_dir = tmp_path / "session_logs"
         with patch("app.services.session_logger.LOGS_DIR", log_dir):

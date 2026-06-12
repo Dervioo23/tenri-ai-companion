@@ -1,8 +1,6 @@
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from app.core.prompt_builder import PromptBuilder
-from app.config import Config
 
 @pytest.fixture
 def builder():

@@ -1,90 +1,118 @@
-# AI Companion Terminal Prototype
+# Tenri AI Companion
 
-A Python-based creative AI interaction system designed for lectures, presentations, or performative research. It features voice input, natural text-to-speech output, context-aware memory, and computer vision triggers.
+Tenri adalah companion presentasi berbasis suara yang dapat mendengar presenter, memahami posisi slide, mengambil fakta dari knowledge base, lalu merespons sebagai karakter hidup. Persona Tenri terinspirasi oleh We Tenriabeng dan dunia `tursalahjalan.com`, dengan perhatian khusus pada arsip, ingatan kolektif, dan warisan budaya.
 
-## Key Features
+## Kemampuan Utama
 
-- **Interactive Voice Loop**: Conversational engagement via speech-to-text and text-to-speech.
-- **Push-to-Talk Interaction**: Keyboard-triggered microphone captures to prevent false activations.
-- **Smart Conversational Engine**: Powered by Groq API (extremely low latency LLM response).
-- **Natural Voice Generation**: Powered by ElevenLabs API.
-- **Computer Vision Context**: Uses OpenCV to detect faces and movement, adding context to the AI's prompts.
-- **Structured Workspace**: Well-isolated directory structure following professional modular Python application architecture.
+- Percakapan suara dengan speech-to-text, intent classification, conversation window, dan koreksi istilah domain.
+- LLM melalui Groq sebagai provider utama, dengan Gemini sebagai provider opsional.
+- ElevenLabs TTS melalui REST API langsung, plus fallback TTS lokal atau Edge TTS.
+- Retrieval berbasis BM25 dari PDF, DOCX, PPTX, Markdown, dan teks.
+- Kesadaran narasi presentasi: slide aktif, topik yang sudah dibahas, dan slide berikutnya.
+- Navigasi slide melalui suara, ambient trigger, interruption policy, dan mode debat berbasis sumber.
+- JarvisDisplay dan terminal UI untuk status listening, thinking, speaking, slide, serta metrik latensi.
+- Menu interaktif untuk menjalankan Tenri, mengimpor materi, rehearsal, dan mengelola knowledge base.
+- Session log terpusat di `app/data/logs/`.
 
-## Folder Structure
+## Persyaratan
 
-```
-ai-companion-terminal/
-│
-├── main.py                     # Entry point
-├── requirements.txt            # Project dependencies
-├── .env                        # Configuration file (keys go here)
-├── .env.example                # Configuration template
-├── README.md                   # Setup and usage guide
-│
-├── app/
-│   ├── __init__.py
-│   ├── config.py               # Config loader and validator
-│   ├── state.py                # Global state manager
-│   │
-│   ├── core/
-│   │   ├── interaction_loop.py # Main loop logic (idle, listen, process, speak)
-│   │   ├── prompt_builder.py   # System rules & personality builder
-│   │   └── session_memory.py   # Conversation history manager
-│   │
-│   ├── services/
-│   │   ├── groq_service.py     # LLM API connection (Groq)
-│   │   ├── elevenlabs_service.py # Text-To-Speech (ElevenLabs)
-│   │   ├── speech_service.py   # Microphone transcription (SpeechRecognition)
-│   │   ├── vision_service.py   # Face and motion detection (OpenCV)
-│   │   └── audio_player.py     # Wave/mp3 output player (Pygame)
-│   │
-│   ├── prompts/
-│   │   ├── character_prompt.txt # AI persona and backstory
-│   │   └── system_rules.txt     # AI interaction boundaries
-│   │
-│   └── utils/
-│       ├── logger.py           # Logging mechanism
-│       ├── file_manager.py     # Temporary audio and image management
-│       └── terminal_ui.py      # Rich interface logs and states
-│
-└── assets/                     # Media output files
-```
+- Python 3.10 atau lebih baru.
+- Microphone dan speaker.
+- API key Groq untuk konfigurasi default.
+- API key ElevenLabs bila TTS ElevenLabs diaktifkan.
+- Camera hanya diperlukan bila vision diaktifkan.
 
-## Setup Instructions
+## Instalasi
 
-### 1. Requirements
-
-- Python 3.10+
-- An active Internet connection (for Groq & ElevenLabs APIs)
-- A working microphone and camera
-
-### 2. Installation
-
-Install PyAudio and other dependencies:
-
-```bash
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-*Note for Windows users: If you run into issues installing `PyAudio`, you can download the appropriate precompiled wheel from [Unofficial Windows Binaries](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio) or install it via `pip install pipwin` followed by `pipwin install pyaudio`.*
+Dependensi Gemini dan Edge TTS sengaja tidak dipasang pada instalasi inti:
 
-### 3. API Setup
-
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
+```powershell
+pip install -r requirements-optional.txt
 ```
-Fill in the credentials in `.env`:
-- `GROQ_API_KEY`: Get it from [Groq Console](https://console.groq.com/).
-- `ELEVENLABS_API_KEY`: Get it from [ElevenLabs Profile Settings](https://elevenlabs.io/).
-- `ELEVENLABS_VOICE_ID`: Choose a voice ID from ElevenLabs.
 
-### 4. Running the App
+Jangan commit `.env` atau API key ke repository.
 
-```bash
+## Konfigurasi Provider
+
+Provider default adalah Groq:
+
+```dotenv
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_key
+GROQ_MODEL=llama-3.3-70b-versatile
+```
+
+Untuk Gemini, instal dependensi opsional lalu ubah konfigurasi:
+
+```dotenv
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_key
+GEMINI_MODEL=gemini-3.5-flash
+```
+
+ElevenLabs dipanggil melalui REST API menggunakan `requests`; paket SDK `elevenlabs` tidak diperlukan.
+
+## Menjalankan Aplikasi
+
+```powershell
 python main.py
 ```
-By default, the application runs in text-only mode if no speech keys are specified.
-Press **Enter** to trigger the voice capture / push-to-talk mechanism.
-Use **Ctrl+C** to safely exit.
+
+Menu utama menyediakan:
+
+1. Jalankan Tenri.
+2. Import Materi.
+3. Rehearsal Simulasi.
+4. Kelola Knowledge Base.
+5. Keluar.
+
+## Knowledge Base
+
+Materi aktif dicatat di `app/knowledge/sources.json`. Folder kanonik untuk materi presentasi adalah `app/knowledge/presentations/`; `inbox/` hanya area masuk sementara sebelum impor selesai.
+
+```powershell
+python scripts/import_document.py "C:\materi\presentasi.pptx"
+python scripts/manage_knowledge.py list
+python scripts/manage_knowledge.py disable --id sumber-id
+python scripts/manage_knowledge.py enable --id sumber-id
+```
+
+Importer mendukung `.pptx`, `.docx`, dan `.pdf`. Loader runtime juga mendukung `.md` dan `.txt`. Index retrieval tersimpan di `app/knowledge/indexes/` dan dibangun ulang ketika cache tidak tersedia atau rusak.
+
+## Struktur Proyek
+
+```text
+ai-companion-terminal/
+|-- main.py
+|-- requirements.txt
+|-- requirements-optional.txt
+|-- app/
+|   |-- config.py
+|   |-- core/                  # interaction loop, prompt, memory
+|   |-- services/              # LLM, STT, TTS, retrieval, intent, vision
+|   |-- prompts/               # persona, aturan, contoh dialog
+|   |-- presentation/          # slides dan ambient triggers
+|   |-- knowledge/             # sumber, presentasi, index retrieval
+|   |-- ui/                    # JarvisDisplay
+|   |-- utils/                 # terminal, logging, text processing
+|   `-- data/
+|       |-- logs/              # app.log dan session_*.jsonl
+|       `-- rehearsals/
+|-- scripts/                   # import, rehearsal, knowledge management
+`-- tests/                     # regression dan unit tests
+```
+
+## Pengujian
+
+```powershell
+pytest -q
+```
+
+Untuk demo live, uji microphone, provider LLM, TTS, navigasi slide, dan materi aktif sebelum presentasi. Kelulusan unit test tidak membuktikan bahwa latensi jaringan dan perangkat audio di lokasi acara akan stabil.

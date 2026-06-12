@@ -1,4 +1,4 @@
-﻿import concurrent.futures
+import concurrent.futures
 import random
 import re
 import threading
@@ -10,7 +10,6 @@ from app.config import Config
 from app.core.prompt_builder import PromptBuilder
 from app.core.session_memory import SessionMemory
 from app.services.groq_service import GroqService
-from app.services.gemini_service import GeminiService
 from app.services.elevenlabs_service import ElevenLabsService
 from app.services.audio_player import AudioPlayer
 from app.services.speech_service import SpeechService
@@ -80,7 +79,7 @@ _CLOSING_PHRASES: frozenset[str] = frozenset({
     "oke sama sama", "baik sama sama",
 })
 
-# Frasa pendek yang hanya berupa acknowledgment â€” tidak perlu respons LLM.
+# Frasa pendek yang hanya berupa acknowledgment — tidak perlu respons LLM.
 # Berlaku saat dalam conversation window dan bukan panggilan wake word langsung.
 _ACKNOWLEDGMENT_PHRASES: frozenset[str] = frozenset({
     "ya", "oke", "ok", "iya", "baik", "mengerti", "paham",
@@ -91,7 +90,7 @@ _ACKNOWLEDGMENT_PHRASES: frozenset[str] = frozenset({
     "oh oke", "oh ok", "oh iya", "oh ya",
     "hmm", "hm", "mmm",
     "hmm oke", "hmm ok", "hmm ya",
-    # Standalone greetings in conversation window â€” not a meaningful request
+    # Standalone greetings in conversation window — not a meaningful request
     "hai", "halo", "hey", "hi", "hello",
     "hai tenri", "halo tenri", "hey tenri", "hi tenri",
     # Echo sapaan Tenri "Ya, saya di sini."
@@ -171,6 +170,11 @@ _AUDIENCE_MARKERS: frozenset[str] = frozenset({
 
 class InteractionLoop:
     def __init__(self, jarvis_ui=None):
+        self._config_errors, self._config_warnings = Config.validate_critical_configs()
+        if self._config_errors:
+            joined = "; ".join(self._config_errors)
+            raise ValueError(f"Invalid Tenri configuration: {joined}")
+
         # UI & Files foundation
         FileManager.ensure_directories()
         FileManager.cleanup_temp_files()
@@ -206,21 +210,21 @@ class InteractionLoop:
         # Session log (one JSONL file per run)
         self.session_logger = SessionLogger()
 
-        # Intent classifier â€” routing presenter utterances ke 5 kategori
+        # Intent classifier — routing presenter utterances ke 5 kategori
         self.intent_classifier = IntentClassifier()
 
-        # Local TTS fallback (XTTS v2) â€” dipakai saat ElevenLabs tidak tersedia
+        # Local TTS fallback (XTTS v2) — dipakai saat ElevenLabs tidak tersedia
         self.local_tts_service = LocalTTSService()
 
-        # Query rewriter â€” converts vague/context-dependent user inputs into
+        # Query rewriter — converts vague/context-dependent user inputs into
         # focused BM25 search queries using slide context + conversation history.
         self.query_rewriter = QueryRewriter()
 
-        # Answer verifier â€” grounding check: ensures Tenri's response is supported
+        # Answer verifier — grounding check: ensures Tenri's response is supported
         # by retrieved context chunks via BOW cosine similarity.
         self.answer_verifier = AnswerVerifier()
 
-        # Background listener â€” continuous capture + mute gate saat TTS
+        # Background listener — continuous capture + mute gate saat TTS
         self.bg_listener = BackgroundListener(self.speech_service)
         if Config.VAD_ENABLED and not Config.PUSH_TO_TALK_ENABLED and Config.VOICE_INPUT_ENABLED:
             self.bg_listener.start()
@@ -236,7 +240,7 @@ class InteractionLoop:
         # Blocks even questions until presenter explicitly calls "Tenri" again.
         self._quiet_mode: bool = False
 
-        # Timing diagnostics â€” set by _stream_and_speak after each response
+        # Timing diagnostics — set by _stream_and_speak after each response
         self._last_llm_seconds: float = 0.0
         self._last_first_voice_seconds: float = 0.0
         self._last_tts_seconds: float = 0.0
@@ -246,7 +250,7 @@ class InteractionLoop:
         self._last_stt_seconds: float = 0.0
         self._last_retrieval_seconds: float = 0.0
 
-        # Last spoken response text â€” used to strip mic echo in next transcription
+        # Last spoken response text — used to strip mic echo in next transcription
         self._last_tenri_response: str = ""
 
         # Subscribe state changes to terminal updates
@@ -305,13 +309,13 @@ class InteractionLoop:
 
         Handles two echo patterns:
 
-        Case 1 â€” Whole-input echo: the entire transcription is the echo
+        Case 1 — Whole-input echo: the entire transcription is the echo
           (e.g. last sentence reverb captured as standalone phrase)
-          â†’ discard entirely.
+          → discard entirely.
 
-        Case 2 â€” Prefix echo concatenated with real speech
+        Case 2 — Prefix echo concatenated with real speech
           (e.g. mic captured echo then user continued speaking in same breath)
-          â†’ strip the echo prefix, keep the rest.
+          → strip the echo prefix, keep the rest.
 
         Both cases use token-level overlap so minor STT variants ("di sini" vs
         "disini") are still matched correctly.
@@ -613,7 +617,7 @@ class InteractionLoop:
             self._last_tenri_response = response_text
             logger.info(f"Latency interruption_total: {time.monotonic() - interruption_started_at:.2f}s")
             # Sengaja TIDAK buka conversation window setelah proaktif:
-            # Tenri yang nimbrung sendiri â†’ presenter balik ke audiens.
+            # Tenri yang nimbrung sendiri → presenter balik ke audiens.
             # Kalau presenter mau tindak lanjut, cukup panggil "Tenri" lagi.
         except Exception as e:
             logger.warning(f"Interruption failed: {e}")
@@ -624,7 +628,7 @@ class InteractionLoop:
         """Pre-generate TTS audio for static phrases in a background thread.
 
         Each phrase is passed through text_to_speech() which checks the SHA256 cache
-        first â€” already-cached phrases are returned instantly without an API call.
+        first — already-cached phrases are returned instantly without an API call.
         New phrases are generated and saved so subsequent runs are instant too.
         Thread is daemon so it never blocks shutdown.
         """
@@ -663,7 +667,7 @@ class InteractionLoop:
         if not Config.VOICE_OUTPUT_ENABLED:
             return None
 
-        # Try ElevenLabs first (cache hit â†’ instan, miss â†’ API call)
+        # Try ElevenLabs first (cache hit → instan, miss → API call)
         if self.elevenlabs_service.client is not None:
             result = self.elevenlabs_service.text_to_speech(text)
             if result:
@@ -671,7 +675,7 @@ class InteractionLoop:
 
         # Fallback: local XTTS (jika tersedia)
         if self.local_tts_service.available:
-            logger.info(f"ElevenLabs tidak menghasilkan audio â€” local TTS fallback: '{text[:40]}'")
+            logger.info(f"ElevenLabs tidak menghasilkan audio — local TTS fallback: '{text[:40]}'")
             return self.local_tts_service.synthesize(text)
 
         return None
@@ -722,16 +726,28 @@ class InteractionLoop:
 
         return None, buffer
 
+    @staticmethod
+    def _close_stream(stream, provider: str) -> None:
+        """Close a streaming iterator without masking the primary operation."""
+        close_stream = getattr(stream, "close", None)
+        if not callable(close_stream):
+            return
+        try:
+            close_stream()
+        except Exception as close_error:
+            logger.warning("Failed to close %s stream: %s", provider, close_error)
+
     def _stream_and_speak(
         self,
         messages: list,
         max_sentences: int = 2,
         max_chars: int = 0,
+        context_str: str = "",
     ) -> str:
         """Sentence-level streaming pipeline.
 
-        Streams LLM tokens â†’ emits complete sentences â†’ TTS each sentence in a
-        background thread â†’ plays audio in order.  Sentence 1 audio starts while
+        Streams LLM tokens → emits complete sentences → TTS each sentence in a
+        background thread → plays audio in order.  Sentence 1 audio starts while
         the LLM is still generating sentence 2, cutting perceived latency by ~60%.
         Stream is abandoned after max_sentences are submitted to TTS.
 
@@ -745,6 +761,7 @@ class InteractionLoop:
             self.elevenlabs_service.client is not None or self.local_tts_service.available
         )
 
+        stream = None
         try:
             _t_start = time.monotonic()
             _t_first_sentence: float = 0.0
@@ -760,6 +777,7 @@ class InteractionLoop:
             pending: list[tuple[str, concurrent.futures.Future]] = []
             _tts_generation_total = 0.0
             _audio_playback_total = 0.0
+            grounding_failed = False
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 def _remaining_chars() -> int:
@@ -780,6 +798,21 @@ class InteractionLoop:
                     fut.set_result((None, 0.0))
                     return fut
 
+                def _verify_before_tts(text: str) -> tuple[str, bool]:
+                    if not context_str:
+                        return text, False
+                    verified, overridden = self.answer_verifier.check(text, context_str)
+                    if overridden:
+                        verified = format_tenri_voice_response(
+                            verified,
+                            max_sentences=1,
+                        )
+                        logger.info(
+                            "AnswerVerifier: streaming sentence blocked before TTS; "
+                            "safe fallback submitted instead."
+                        )
+                    return verified, overridden
+
                 for delta in stream:
                     delta = delta or ""
                     if not delta:
@@ -788,7 +821,10 @@ class InteractionLoop:
 
                     segment, buffer = self._extract_stream_segment(
                         buffer,
-                        allow_soft=(sentence_count == 0),
+                        # Grounding must evaluate a complete sentence. A soft
+                        # comma/clause break is useful for TTFT only when there
+                        # is no retrieved context to verify against.
+                        allow_soft=(sentence_count == 0 and not context_str),
                     )
                     if segment:
                         sentence = segment.strip()
@@ -798,19 +834,25 @@ class InteractionLoop:
                             if remaining_chars <= 8:
                                 break
                             sentence = trim_to_character_budget(sentence, remaining_chars)
+                        sentence, grounding_failed = _verify_before_tts(sentence)
                         if len(sentence) > 8:
                             if not _t_first_sentence:
                                 _t_first_sentence = time.monotonic()
                             pending.append((sentence, _submit_tts(sentence)))
                             spoken_parts.append(sentence)
                             sentence_count += 1
+                            if grounding_failed:
+                                break
                             if sentence_count >= max_sentences:
                                 break  # stop consuming LLM stream
                             if max_chars > 0 and len(" ".join(spoken_parts)) >= max_chars:
-                                break  # stop consuming LLM stream â€” cukup 2 kalimat
+                                break  # stop consuming LLM stream — cukup 2 kalimat
+
+                self._close_stream(stream, "LLM")
+                stream = None
 
                 # Flush remainder hanya jika masih di bawah batas kalimat
-                if sentence_count < max_sentences:
+                if not grounding_failed and sentence_count < max_sentences:
                     remainder = buffer.strip()
                     if len(remainder) > 5:
                         if not _t_first_sentence:
@@ -822,6 +864,7 @@ class InteractionLoop:
                                 remainder = trim_to_character_budget(remainder, remaining_chars)
                             else:
                                 remainder = ""
+                        remainder, grounding_failed = _verify_before_tts(remainder)
                         if len(remainder) > 8:
                             spoken_parts.append(remainder)
                             pending.append((remainder, _submit_tts(remainder)))
@@ -866,19 +909,14 @@ class InteractionLoop:
         except Exception as e:
             logger.warning(f"Streaming pipeline error ({e}), falling back to blocking call.")
             return llm.get_response(messages)
+        finally:
+            self._close_stream(stream, "LLM")
 
     def run(self):
         """Starts the interaction loop."""
         TerminalUI.print_welcome_banner()
 
-        errors, warnings = Config.validate_critical_configs()
-        TerminalUI.print_setup_status(errors, warnings)
-
-        if errors:
-            print("\nSistem tidak dapat dijalankan karena ada konfigurasi kritis yang kurang.")
-            print("Silakan edit file .env dan jalankan aplikasi kembali.\n")
-            self.cleanup()
-            return
+        TerminalUI.print_setup_status(self._config_errors, self._config_warnings)
 
         self.running = True
         logger.info("Main interaction loop started.")
@@ -887,7 +925,7 @@ class InteractionLoop:
             f"Streaming={Config.GROQ_STREAMING}, LIVE_MODE={Config.LIVE_RESPONSE_MODE}"
         )
         if Config.LIVE_RESPONSE_MODE:
-            logger.info("LIVE_RESPONSE_MODE aktif â€” respons dipaksa max 1 kalimat, max_tokens=80.")
+            logger.info("LIVE_RESPONSE_MODE aktif — respons dipaksa max 1 kalimat, max_tokens=80.")
 
         print("\nSistem aktif. Gunakan Ctrl+C untuk keluar dengan aman.")
 
@@ -925,7 +963,7 @@ class InteractionLoop:
 
                 if Config.VOICE_INPUT_ENABLED and self.speech_service.microphone_available:
                     if Config.PUSH_TO_TALK_ENABLED:
-                        # Mode A: Push-to-talk â€” tekan Enter, lalu bicara
+                        # Mode A: Push-to-talk — tekan Enter, lalu bicara
                         print("\n[Tekan ENTER untuk mulai merekam suara...]", end="")
                         sys.stdin.readline()
                         state_manager.set_state(AppState.LISTENING)
@@ -943,7 +981,7 @@ class InteractionLoop:
                             state_manager.set_state(AppState.IDLE)
                             continue
                     else:
-                        # Mode B: Auto-listen â€” VAD queue jika tersedia, sequential jika tidak
+                        # Mode B: Auto-listen — VAD queue jika tersedia, sequential jika tidak
                         state_manager.set_state(AppState.LISTENING)
                         if self.bg_listener.available:
                             user_input = self.bg_listener.get(timeout=Config.SPEECH_TIMEOUT)
@@ -951,7 +989,7 @@ class InteractionLoop:
                             self._last_record_seconds = self.bg_listener.last_record_seconds
                             self._last_stt_seconds = self.bg_listener.last_stt_seconds
                             if user_input is None:
-                                # Timeout â€” tidak ada suara, kembali menunggu
+                                # Timeout — tidak ada suara, kembali menunggu
                                 state_manager.set_state(AppState.IDLE)
                                 continue
                         else:
@@ -964,14 +1002,14 @@ class InteractionLoop:
                                 time.sleep(0.5)
                                 continue
                 else:
-                    # Mode C: Teks â€” fallback jika mic tidak tersedia
+                    # Mode C: Teks — fallback jika mic tidak tersedia
                     print("\n[Offline Mic] Ketik pesan Anda di bawah:")
                     user_input = input(">> ").strip()
                     if not user_input:
                         continue
 
                 # Perintah keluar berlaku untuk semua mode input (push-to-talk,
-                # auto-listen, dan teks) â€” bukan hanya Mode B/C seperti sebelumnya.
+                # auto-listen, dan teks) — bukan hanya Mode B/C seperti sebelumnya.
                 if self._is_exit_command(user_input):
                     break
 
@@ -998,7 +1036,7 @@ class InteractionLoop:
                 if self._handle_slide_command(user_input):
                     continue
 
-                # 3. Intent classification â€” routing ucapan presenter ke 5 kategori
+                # 3. Intent classification — routing ucapan presenter ke 5 kategori
                 _in_conversation = time.monotonic() < self._conversation_until
                 intent_result = self.intent_classifier.classify(
                     user_input,
@@ -1008,14 +1046,14 @@ class InteractionLoop:
                     in_conversation=_in_conversation,
                     quiet_mode=self._quiet_mode,
                 )
-                logger.info(f"Intent: {intent_result.intent.value} â€” {intent_result.reason}")
+                logger.info(f"Intent: {intent_result.intent.value} — {intent_result.reason}")
 
                 # 4. Route berdasarkan intent
                 if intent_result.intent == Intent.CLOSING_TENRI:
                     _was_already_quiet = self._quiet_mode
                     self._conversation_until = 0.0
                     self._quiet_mode = True
-                    logger.info("Conversation window closed â€” quiet mode ON.")
+                    logger.info("Conversation window closed — quiet mode ON.")
                     if not _was_already_quiet:
                         _farewell = random.choice(_FAREWELL_RESPONSES)
                         TerminalUI.print_assistant_response("TENRI", _farewell)
@@ -1031,13 +1069,13 @@ class InteractionLoop:
                     continue
 
                 if intent_result.intent == Intent.ASKING_AUDIENCE:
-                    logger.info("Audience-directed speech â€” Tenri diam.")
+                    logger.info("Audience-directed speech — Tenri diam.")
                     state_manager.set_state(AppState.IDLE)
                     continue
 
                 if intent_result.intent in (Intent.EXPLAINING, Intent.AMBIENT, Intent.NOISE):
-                    # EXPLAINING: presenter sedang menjelaskan â†’ pantau trigger, jangan LLM
-                    # AMBIENT: tidak ada sinyal jelas â†’ pantau trigger, jangan LLM
+                    # EXPLAINING: presenter sedang menjelaskan → pantau trigger, jangan LLM
+                    # AMBIENT: tidak ada sinyal jelas → pantau trigger, jangan LLM
                     label = intent_result.intent.value.upper()
                     if self.tracker.is_active():
                         self._handle_auto_slide_trigger(user_input)
@@ -1064,13 +1102,13 @@ class InteractionLoop:
                             else:
                                 logger.info(f"[{label}] Ambient trigger matched but cooldown active.")
                         else:
-                            logger.info(f"[{label}] No ambient trigger â€” Tenri monitoring.")
+                            logger.info(f"[{label}] No ambient trigger — Tenri monitoring.")
                     elif intent_result.intent == Intent.AMBIENT and Config.VOICE_INPUT_ENABLED:
                         TerminalUI.print_auto_listen_hint(user_input)
                     state_manager.set_state(AppState.IDLE)
                     continue
 
-                # ASKING_TENRI â€” lanjut ke pipeline LLM
+                # ASKING_TENRI — lanjut ke pipeline LLM
                 # Update user_input: hilangkan wake word jika ada
                 user_input = intent_result.query if intent_result.query is not None else user_input
                 _was_direct_call = intent_result.was_wake_word
@@ -1099,13 +1137,13 @@ class InteractionLoop:
 
                 _has_question = _has_question_word(user_input)
 
-                # Acknowledgment singkat dalam conversation window â†’ Tenri diam, tidak panggil LLM.
+                # Acknowledgment singkat dalam conversation window → Tenri diam, tidak panggil LLM.
                 # Hanya berlaku jika bukan panggilan wake word langsung dan tidak ada kata tanya.
                 if not _was_direct_call and not _has_question:
                     _norm_ack = re.sub(r'[^\w\s]', ' ', user_input.lower())
                     _norm_ack = re.sub(r'\s+', ' ', _norm_ack).strip()
                     if _norm_ack in _ACKNOWLEDGMENT_PHRASES:
-                        logger.info(f"Acknowledgment dalam conversation window â€” Tenri diam: '{_norm_ack}'")
+                        logger.info(f"Acknowledgment dalam conversation window — Tenri diam: '{_norm_ack}'")
                         state_manager.set_state(AppState.IDLE)
                         continue
 
@@ -1114,7 +1152,7 @@ class InteractionLoop:
                     self._handle_auto_slide_trigger(user_input)
 
                 # Ambient trigger check untuk ASKING_TENRI
-                # Jika ada trigger dan bukan pertanyaan langsung â†’ lakukan interruption, skip LLM
+                # Jika ada trigger dan bukan pertanyaan langsung → lakukan interruption, skip LLM
                 if self.trigger_service.is_active():
                     ambient = self.trigger_service.detect(user_input)
                     if ambient:
@@ -1158,7 +1196,7 @@ class InteractionLoop:
                         self.memory.get_messages(),
                     )
                 if enriched_query != user_input:
-                    logger.info(f"QueryRewriter: '{user_input[:50]}' â†’ '{enriched_query[:80]}'")
+                    logger.info(f"QueryRewriter: '{user_input[:50]}' → '{enriched_query[:80]}'")
                 retrieval_started_at = time.monotonic()
                 context_chunks = self.retrieval.search(enriched_query)
                 if is_slide_explanation:
@@ -1216,6 +1254,7 @@ class InteractionLoop:
                             messages,
                             max_sentences=_max_sent,
                             max_chars=_max_chars,
+                            context_str=context_str,
                         )
                     logger.info(f"Latency stream_pipeline: {time.monotonic() - llm_started_at:.2f}s")
                 else:
@@ -1227,18 +1266,15 @@ class InteractionLoop:
                 response_text = trim_response(response_text, max_sentences=_max_sent)
                 response_text = trim_to_character_budget(response_text, _max_chars)
 
-                # Grounding check â€” verify response is supported by retrieved context.
-                # Streaming: audio already played, check is post-hoc (warning only).
-                # Non-streaming: can still override response before TTS is called.
-                if context_str:
+                # Streaming verifies each sentence before TTS submission. Blocking
+                # mode verifies the complete response here before playback.
+                if context_str and not Config.GROQ_STREAMING:
                     _verified, _overridden = self.answer_verifier.check(response_text, context_str)
                     if _overridden:
-                        if not Config.GROQ_STREAMING:
-                            response_text = _verified
-                            response_text = format_tenri_voice_response(response_text, max_sentences=_max_sent)
-                            response_text = trim_to_character_budget(response_text, _max_chars)
-                        logger.info("AnswerVerifier: low grounding detected%s.",
-                                    " â€” fallback applied" if not Config.GROQ_STREAMING else " (streaming â€” audio already played)")
+                        response_text = _verified
+                        response_text = format_tenri_voice_response(response_text, max_sentences=_max_sent)
+                        response_text = trim_to_character_budget(response_text, _max_chars)
+                        logger.info("AnswerVerifier: low grounding detected; fallback applied.")
 
                 self._last_tenri_response = response_text
 
@@ -1321,6 +1357,10 @@ class InteractionLoop:
                 state_manager.set_state(AppState.IDLE)
 
         self.cleanup()
+
+    def request_stop(self) -> None:
+        """Request a cooperative stop from the UI/main thread."""
+        self.running = False
 
     def cleanup(self):
         """Releases hardware resources and performs temp cleanup."""

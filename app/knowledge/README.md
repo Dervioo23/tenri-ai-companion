@@ -1,47 +1,47 @@
 # Tenri Knowledge Base
 
-Folder ini menyimpan sumber pengetahuan eksternal untuk Tenri. Tenri tidak seharusnya membaca semua file secara bebas; sumber yang boleh dipakai harus tercatat di `sources.json` dan memiliki status `active`.
+Folder ini menyimpan sumber pengetahuan yang boleh dipakai Tenri. Sumber runtime harus tercatat di `sources.json`; hanya entri berstatus `active` yang dimuat.
 
-## Struktur
+## Struktur Kanonik
 
 ```text
 app/knowledge/
-|-- README.md
 |-- sources.json
 |-- books/
 |-- archives/
 |-- papers/
 |-- project_notes/
-|-- presentation/
-|-- inbox/
-|-- indexes/
+|-- presentations/    # satu-satunya folder materi presentasi permanen
+|-- inbox/            # area sementara untuk file yang belum diimpor
+`-- indexes/          # cache chunk retrieval
 ```
+
+Jangan membuat folder `presentation/` tanpa huruf `s`. Semua PPTX dan outline presentasi permanen berada di `presentations/`.
 
 ## Status Sumber
 
-- `active`: sumber dipakai oleh Tenri.
-- `archived`: sumber lama tetap disimpan, tetapi tidak dipakai.
-- `disabled`: sumber dimatikan sementara.
-- `draft`: sumber belum siap dipakai.
-- `replaced`: sumber sudah digantikan oleh versi baru.
+- `active`: dimuat ke knowledge base.
+- `disabled`: dimatikan sementara.
+- `draft`: belum siap dipakai.
+- `archived`: versi lama disimpan sebagai jejak.
+- `replaced`: sudah digantikan versi baru.
 
-## Prinsip
+## Alur Materi
 
-- Jangan hapus materi lama jika masih berguna sebagai jejak kerja.
-- Gunakan versi baru ketika materi berubah besar.
-- Tenri hanya boleh memakai sumber yang tercatat dan aktif.
-- Setelah menambah atau mengganti materi, index retrieval perlu dibuat ulang pada tahap berikutnya.
+Gunakan importer agar file disalin ke lokasi kanonik, metadata `sources.json` diperbarui, dan aset presentasi dapat dibuat secara konsisten:
 
-## Otomasi
-
-Gunakan `scripts/manage_knowledge.py` untuk menambah, mengganti, mengaktifkan, menonaktifkan, dan melihat daftar sumber.
-
-Contoh:
-
-```text
-python scripts/manage_knowledge.py list
-python scripts/manage_knowledge.py add --type paper --title "Judul Paper" --file "path/to/file.pdf"
-python scripts/manage_knowledge.py replace --id judul-paper --file "path/to/file_baru.pdf"
-python scripts/manage_knowledge.py disable --id judul-paper
-python scripts/manage_knowledge.py enable --id judul-paper
+```powershell
+python scripts/import_document.py "C:\materi\presentasi.pptx"
+python scripts/import_document.py "C:\materi\paper.pdf" --name "Judul Materi"
 ```
+
+Kelola status sumber dengan:
+
+```powershell
+python scripts/manage_knowledge.py list
+python scripts/manage_knowledge.py disable --id sumber-id
+python scripts/manage_knowledge.py enable --id sumber-id
+python scripts/manage_knowledge.py replace --id sumber-id --file "C:\materi\versi-baru.pdf"
+```
+
+Jangan menghapus versi lama hanya untuk mengganti materi. Gunakan `replace` bila riwayat versi masih dibutuhkan. Hapus entri hanya jika memang artefak basi dan file rujukannya sudah tidak ada.

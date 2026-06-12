@@ -2,11 +2,7 @@
   {
     "id": "t001",
     "patterns": [
-      "pengenalan teknologi",
-      "pengenalan",
-      "teknologi",
-      "mengenal",
-      "kecerdasan"
+      "pengenalan teknologi"
     ],
     "topic": "PENGENALAN TEKNOLOGI",
     "mode": "comment",
@@ -19,8 +15,6 @@
   {
     "id": "t002",
     "patterns": [
-      "definisi",
-      "dasar",
       "artificial intelligence"
     ],
     "topic": "DEFINISI DASAR",
@@ -34,8 +28,6 @@
   {
     "id": "t003",
     "patterns": [
-      "pemetaan",
-      "istilah",
       "machine learning",
       "deep learning"
     ],
@@ -51,8 +43,7 @@
     "id": "t004",
     "patterns": [
       "cara kerja",
-      "belajar dari data",
-      "pelatihan"
+      "belajar dari data"
     ],
     "topic": "CARA KERJA",
     "mode": "clarification",
@@ -99,7 +90,6 @@
     "id": "t007",
     "patterns": [
       "sedang ramai",
-      "generatif",
       "chatgpt",
       "dall-e",
       "midjourney"
@@ -132,7 +122,6 @@
     "id": "t009",
     "patterns": [
       "sisi gelap",
-      "risiko",
       "bias data",
       "halusinasi",
       "deepfake"
@@ -150,8 +139,7 @@
     "patterns": [
       "sikap yang tepat",
       "verifikasi output",
-      "alat bantu",
-      "kritis"
+      "alat bantu"
     ],
     "topic": "SIKAP YANG TEPAT",
     "mode": "comment",
@@ -179,10 +167,7 @@
   {
     "id": "t012",
     "patterns": [
-      "ringkasan",
-      "perlu diingat",
-      "kesimpulan",
-      "penutup"
+      "perlu diingat"
     ],
     "topic": "RINGKASAN",
     "mode": "clarification",

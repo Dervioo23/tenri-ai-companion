@@ -479,12 +479,20 @@ class IntentClassifier:
         )
 
     def _extract_wake_call(self, lower: str, original: str, wake_words: list[str]) -> str | None:
-        # `lower` is text.lower().strip(); align `original` by stripping too so the
-        # regex end offset maps to the same position (lowercasing preserves length).
+        """Return the presenter query with the wake phrase removed.
+
+        Indonesian speakers naturally place a name at the start, middle, or end
+        of an utterance. Keep meaningful text on both sides of the wake phrase;
+        taking only the suffix silently drops questions such as
+        "Apa itu AI, Tenri?".
+        """
+        # `lower` is text.lower().strip(); align `original` by stripping too so
+        # regex offsets map to the same positions (lowercasing preserves length).
         stripped = original.strip()
         for wake in sorted(wake_words, key=len, reverse=True):
             match = self._wake_match(lower, wake)
             if match:
+                before = stripped[:match.start()].strip().rstrip(",. !?")
                 after = stripped[match.end():].strip().lstrip(",. !?")
-                return after
+                return " ".join(part for part in (before, after) if part).strip()
         return None

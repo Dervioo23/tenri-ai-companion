@@ -86,10 +86,18 @@ class GeminiService:
             contents=contents,
             config=self._build_config(system_instruction, max_tokens or Config.LLM_MAX_TOKENS),
         )
-        for chunk in stream:
-            delta = (getattr(chunk, "text", "") or "")
-            if delta:
-                yield delta
+        try:
+            for chunk in stream:
+                delta = (getattr(chunk, "text", "") or "")
+                if delta:
+                    yield delta
+        finally:
+            close_stream = getattr(stream, "close", None)
+            if callable(close_stream):
+                try:
+                    close_stream()
+                except Exception as close_error:
+                    logger.warning("Failed to close Gemini stream: %s", close_error)
 
     def _build_config(self, system_instruction: str, max_tokens: int):
         kwargs = {

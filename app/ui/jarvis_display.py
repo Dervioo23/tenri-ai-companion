@@ -1,7 +1,7 @@
-"""
-Tenri JARVIS-style visual display.
-Runs in a background daemon thread — main thread keeps driving InteractionLoop.
-Thread-safe updates via queue.Queue.
+"""Tenri JARVIS-style visual display.
+
+Pygame display and event handling run on the process main thread. Interaction
+updates arrive through a thread-safe queue from the companion worker thread.
 """
 import array
 import logging
@@ -171,7 +171,6 @@ class JarvisDisplay:
     def __init__(self):
         self._q           = queue.Queue()
         self._stop        = threading.Event()
-        self._thread: threading.Thread | None = None
 
         # Shared display state (written by public API, read by render thread)
         self.state      = "IDLE"
@@ -181,11 +180,11 @@ class JarvisDisplay:
 
     # ── Public thread-safe API ────────────────────────────────────────────────
 
-    def start(self) -> None:
-        self._thread = threading.Thread(
-            target=self._render_loop, daemon=True, name="TenriJarvisUI"
-        )
-        self._thread.start()
+    def start(self, on_quit=None) -> None:
+        """Run the blocking display loop on the process main thread."""
+        if threading.current_thread() is not threading.main_thread():
+            raise RuntimeError("JarvisDisplay must run on the main thread.")
+        self._render_loop(on_quit=on_quit)
 
     def stop(self) -> None:
         self._stop.set()
@@ -202,9 +201,9 @@ class JarvisDisplay:
     def update_slide(self, text: str) -> None:
         self._q.put(("slide", text))
 
-    # ── Render loop (background thread) ──────────────────────────────────────
+    # ── Render loop (main thread) ────────────────────────────────────────────
 
-    def _render_loop(self) -> None:
+    def _render_loop(self, on_quit=None) -> None:
         # Only init display subsystem — mixer is already initialised by AudioPlayer
         pygame.display.init()
         pygame.font.init()
@@ -244,6 +243,8 @@ class JarvisDisplay:
             for ev in pygame.event.get():
                 if ev.type == pygame.QUIT:
                     self._stop.set()
+                    if on_quit:
+                        on_quit()
                     pygame.display.quit()
                     return
 

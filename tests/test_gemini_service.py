@@ -72,3 +72,20 @@ def test_gemini_service_streaming_success():
 
     assert result == "Halo, saya Tenri."
     service.client.models.generate_content_stream.assert_called_once()
+
+
+def test_gemini_stream_chunks_close_underlying_stream_when_consumer_stops():
+    service = make_service()
+    chunk_a = MagicMock()
+    chunk_a.text = "Kalimat pertama."
+    chunk_b = MagicMock()
+    chunk_b.text = " Kalimat kedua."
+    provider_stream = MagicMock()
+    provider_stream.__iter__.return_value = iter([chunk_a, chunk_b])
+    service.client.models.generate_content_stream.return_value = provider_stream
+
+    stream = service.stream_response_chunks([{"role": "user", "content": "Halo"}])
+    assert next(stream) == "Kalimat pertama."
+    stream.close()
+
+    provider_stream.close.assert_called_once_with()

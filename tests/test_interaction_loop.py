@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 from app.core.interaction_loop import InteractionLoop, _STATIC_TTS_PHRASES, _WAKE_ACK_RESPONSES
 from app.state import AppState
@@ -568,6 +568,115 @@ def test_stream_and_speak_respects_character_budget() -> None:
 
     assert len(result) <= 90
     assert result.endswith(".")
+
+
+def test_stream_and_speak_closes_stream_after_early_sentence_limit() -> None:
+    loop = InteractionLoop.__new__(InteractionLoop)
+    llm = MagicMock()
+    llm.client = True
+    stream = MagicMock()
+    stream.__iter__.return_value = iter([
+        "Kalimat pertama selesai. Kalimat kedua tidak perlu diproses."
+    ])
+    llm.stream_response_chunks.return_value = stream
+    loop._llm = MagicMock(return_value=llm)
+    loop.elevenlabs_service = MagicMock()
+    loop.elevenlabs_service.client = None
+    loop.local_tts_service = MagicMock()
+    loop.local_tts_service.available = False
+    loop.bg_listener = MagicMock()
+
+    with (
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", False),
+        patch("app.core.interaction_loop.state_manager.set_state"),
+        patch("app.core.interaction_loop.time.sleep"),
+    ):
+        result = loop._stream_and_speak(
+            [{"role": "user", "content": "prompt"}],
+            max_sentences=1,
+        )
+
+    assert result == "Kalimat pertama selesai."
+    stream.close.assert_called_once_with()
+
+
+def test_streaming_grounding_blocks_sentence_before_tts() -> None:
+    loop = InteractionLoop.__new__(InteractionLoop)
+    llm = MagicMock()
+    llm.client = True
+    llm.stream_response_chunks.return_value = iter([
+        "Klaim ini tidak didukung sumber. Kalimat lain juga muncul."
+    ])
+    loop._llm = MagicMock(return_value=llm)
+    loop.elevenlabs_service = MagicMock()
+    loop.elevenlabs_service.client = True
+    loop.local_tts_service = MagicMock()
+    loop.local_tts_service.available = False
+    loop.answer_verifier = MagicMock()
+    loop.answer_verifier.check.return_value = (
+        "Tenri tidak punya informasi spesifik untuk ini.",
+        True,
+    )
+    loop._tts_with_fallback = MagicMock(return_value="/tmp/fallback.mp3")
+    loop.audio_player = MagicMock()
+    loop.bg_listener = MagicMock()
+
+    with (
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True),
+        patch("app.core.interaction_loop.state_manager.set_state"),
+    ):
+        result = loop._stream_and_speak(
+            [{"role": "user", "content": "prompt"}],
+            max_sentences=2,
+            context_str="Sumber hanya membahas arsip La Galigo.",
+        )
+
+    assert result == "Tenri tidak punya informasi spesifik untuk ini."
+    loop.answer_verifier.check.assert_called_once_with(
+        "Klaim ini tidak didukung sumber.",
+        "Sumber hanya membahas arsip La Galigo.",
+    )
+    loop._tts_with_fallback.assert_called_once_with(
+        "Tenri tidak punya informasi spesifik untuk ini."
+    )
+    loop.audio_player.play_audio.assert_called_once_with("/tmp/fallback.mp3")
+
+
+def test_streaming_grounding_waits_for_complete_sentence() -> None:
+    loop = InteractionLoop.__new__(InteractionLoop)
+    llm = MagicMock()
+    llm.client = True
+    llm.stream_response_chunks.return_value = iter([
+        "La Galigo bukan sekadar arsip, ",
+        "ia menyimpan ingatan masyarakat Bugis."
+    ])
+    loop._llm = MagicMock(return_value=llm)
+    loop.elevenlabs_service = MagicMock()
+    loop.elevenlabs_service.client = None
+    loop.local_tts_service = MagicMock()
+    loop.local_tts_service.available = False
+    loop.answer_verifier = MagicMock()
+    loop.answer_verifier.check.return_value = (
+        "La Galigo bukan sekadar arsip, ia menyimpan ingatan masyarakat Bugis.",
+        False,
+    )
+    loop.bg_listener = MagicMock()
+
+    with (
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", False),
+        patch("app.core.interaction_loop.state_manager.set_state"),
+        patch("app.core.interaction_loop.time.sleep"),
+    ):
+        loop._stream_and_speak(
+            [{"role": "user", "content": "prompt"}],
+            max_sentences=1,
+            context_str="La Galigo menyimpan ingatan masyarakat Bugis.",
+        )
+
+    checked_text = loop.answer_verifier.check.call_args.args[0]
+    assert checked_text == (
+        "La Galigo bukan sekadar arsip, ia menyimpan ingatan masyarakat Bugis."
+    )
 
 
 # ------------------------------------------------------------------ _tts_with_fallback

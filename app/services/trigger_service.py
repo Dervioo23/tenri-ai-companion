@@ -1,6 +1,6 @@
 import json
 import logging
-from pathlib import Path
+import re
 
 from app.config import BASE_DIR
 
@@ -41,11 +41,15 @@ class TriggerService:
     # ------------------------------------------------------------------ detection
 
     def detect(self, text: str) -> dict | None:
-        """Return the first trigger whose pattern appears in text, or None."""
+        """Return the first trigger whose whole word/phrase appears in text."""
         lowered = text.lower()
         for trigger in self._triggers:
             for pattern in trigger.get("patterns", []):
-                if pattern.lower() in lowered:
+                normalized = str(pattern).lower().strip()
+                if normalized and re.search(
+                    rf"(?<!\w){re.escape(normalized)}(?!\w)",
+                    lowered,
+                ):
                     logger.info(
                         f"Ambient trigger '{trigger.get('id')}' fired (pattern: '{pattern}')"
                     )

@@ -1,4 +1,3 @@
-import pytest
 from app.utils.text_utils import (
     format_tenri_voice_response,
     humanize_tenri_response,
@@ -57,6 +56,27 @@ class TestTrimResponse:
         text = "Tenri v1.0.0 dirilis hari ini. Versi berikutnya akan lebih baik."
         result = trim_response(text, max_sentences=1)
         assert result == "Tenri v1.0.0 dirilis hari ini."
+
+    def test_sentences_ending_in_numbers_respect_limit(self):
+        text = "Ini kalimat 1. Ini kalimat 2. Ini kalimat 3."
+
+        result = trim_response(text, max_sentences=2)
+
+        assert result == "Ini kalimat 1. Ini kalimat 2."
+
+    def test_year_at_sentence_end_is_a_boundary(self):
+        text = "Arsip ini ditemukan pada tahun 2024. Penelitian berlanjut pada 2025."
+
+        result = trim_response(text, max_sentences=1)
+
+        assert result == "Arsip ini ditemukan pada tahun 2024."
+
+    def test_decimal_is_not_a_sentence_boundary(self):
+        text = "Nilainya naik menjadi 3.5 persen. Kenaikan itu perlu diperiksa."
+
+        result = trim_response(text, max_sentences=1)
+
+        assert result == "Nilainya naik menjadi 3.5 persen."
 
     def test_unicode_text(self):
         text = "Sawerigading adalah tokoh La Galigo. We Tenriabeng adalah saudarinya."
@@ -118,6 +138,14 @@ class TestTrimToCharacterBudget:
 
 
 class TestFormatTenriVoiceResponse:
+    def test_removes_unicode_bullet_prefixes(self):
+        text = "• Poin pertama penting. • Poin kedua juga."
+
+        result = format_tenri_voice_response(text)
+
+        assert "•" not in result
+        assert result == "Poin pertama penting. Poin kedua juga."
+
     def test_removes_markdown_and_list_prefixes(self):
         text = "1. **AI bukan makhluk hidup.** 2. Ia membaca pola dari data."
 

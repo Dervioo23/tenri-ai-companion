@@ -506,3 +506,48 @@ def test_multiword_wake_extracts_query_after_wake(intent_classifier_with_local):
     )
     assert result.was_wake_word is True
     assert result.query == "apa itu lontara"
+
+
+def test_wake_word_at_end_preserves_question_before_it(intent_classifier_with_local):
+    result = intent_classifier_with_local.classify(
+        "Apa itu kecerdasan buatan, Tenri?",
+        wake_words=_WAKE_WORDS,
+        audience_markers=frozenset(),
+        closing_phrases=frozenset(),
+        in_conversation=False,
+        quiet_mode=False,
+    )
+
+    assert result.intent == Intent.ASKING_TENRI
+    assert result.was_wake_word is True
+    assert result.query == "Apa itu kecerdasan buatan"
+
+
+def test_wake_word_in_middle_preserves_both_query_sides(intent_classifier_with_local):
+    result = intent_classifier_with_local.classify(
+        "Jelaskan slide ini Tenri sekarang",
+        wake_words=_WAKE_WORDS,
+        audience_markers=frozenset(),
+        closing_phrases=frozenset(),
+        in_conversation=False,
+        quiet_mode=False,
+    )
+
+    assert result.intent == Intent.ASKING_TENRI
+    assert result.was_wake_word is True
+    assert result.query == "Jelaskan slide ini sekarang"
+
+
+def test_wake_word_only_keeps_empty_query(intent_classifier_with_local):
+    result = intent_classifier_with_local.classify(
+        "Tenri",
+        wake_words=_WAKE_WORDS,
+        audience_markers=frozenset(),
+        closing_phrases=frozenset(),
+        in_conversation=False,
+        quiet_mode=False,
+    )
+
+    assert result.intent == Intent.ASKING_TENRI
+    assert result.was_wake_word is True
+    assert result.query == ""

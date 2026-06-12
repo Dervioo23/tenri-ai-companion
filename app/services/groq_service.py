@@ -117,6 +117,8 @@ class GroqService:
         """Yield raw text deltas from Groq stream=True."""
         last_error = None
         for model in self._model_candidates():
+            yielded = False
+            stream = None
             try:
                 stream = self.client.chat.completions.create(
                     messages=messages,
@@ -128,14 +130,33 @@ class GroqService:
                 for chunk in stream:
                     delta = chunk.choices[0].delta.content
                     if delta:
+                        yielded = True
                         yield delta
                 return
             except Exception as e:
                 last_error = e
+                # Once any text has reached the consumer, restarting with a
+                # fallback model would replay the answer from the beginning and
+                # duplicate text/audio. Model fallback is safe only before the
+                # first non-empty delta is yielded.
+                if yielded:
+                    logger.warning(
+                        "Groq streaming failed after output started (%s); "
+                        "not retrying another model.",
+                        model,
+                    )
+                    raise
                 if model != self.model:
                     logger.warning(f"Groq live streaming model failed ({model}); trying fallback model: {e}")
                     continue
                 raise
+            finally:
+                close_stream = getattr(stream, "close", None)
+                if callable(close_stream):
+                    try:
+                        close_stream()
+                    except Exception as close_error:
+                        logger.warning("Failed to close Groq stream: %s", close_error)
         if last_error:
             raise last_error
 

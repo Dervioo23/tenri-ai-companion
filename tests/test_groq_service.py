@@ -149,3 +149,73 @@ def test_groq_service_streaming_handles_rate_limit(mock_groq_class):
 
     assert "Offline Mode" in response
     assert "1m2.0s" in response
+
+
+@patch('app.services.groq_service.Groq')
+def test_stream_chunks_fall_back_when_live_model_fails_before_first_token(mock_groq_class):
+    mock_client = MagicMock()
+    mock_groq_class.return_value = mock_client
+    mock_client.chat.completions.create.side_effect = [
+        Exception("live model unavailable"),
+        [make_stream_chunk("Jawaban dari base model.")],
+    ]
+
+    with (
+        patch('app.config.Config.GROQ_API_KEY', 'some-key'),
+        patch('app.config.Config.GROQ_MODEL', 'base-model'),
+        patch('app.config.Config.GROQ_LIVE_MODEL', 'fast-model'),
+    ):
+        service = GroqService()
+        chunks = list(service.stream_response_chunks([{"role": "user", "content": "Halo"}]))
+
+    assert chunks == ["Jawaban dari base model."]
+    assert mock_client.chat.completions.create.call_count == 2
+    assert mock_client.chat.completions.create.call_args_list[0].kwargs["model"] == "fast-model"
+    assert mock_client.chat.completions.create.call_args_list[1].kwargs["model"] == "base-model"
+
+
+@patch('app.services.groq_service.Groq')
+def test_stream_chunks_do_not_fall_back_after_first_token(mock_groq_class):
+    mock_client = MagicMock()
+    mock_groq_class.return_value = mock_client
+
+    def failing_mid_stream():
+        yield make_stream_chunk("Sebagian jawaban. ")
+        raise RuntimeError("connection lost mid-stream")
+
+    mock_client.chat.completions.create.return_value = failing_mid_stream()
+
+    with (
+        patch('app.config.Config.GROQ_API_KEY', 'some-key'),
+        patch('app.config.Config.GROQ_MODEL', 'base-model'),
+        patch('app.config.Config.GROQ_LIVE_MODEL', 'fast-model'),
+    ):
+        service = GroqService()
+        stream = service.stream_response_chunks([{"role": "user", "content": "Halo"}])
+
+        assert next(stream) == "Sebagian jawaban. "
+        with pytest.raises(RuntimeError, match="connection lost mid-stream"):
+            next(stream)
+
+    assert mock_client.chat.completions.create.call_count == 1
+    assert mock_client.chat.completions.create.call_args.kwargs["model"] == "fast-model"
+
+
+@patch('app.services.groq_service.Groq')
+def test_stream_chunks_close_underlying_groq_stream_when_consumer_stops(mock_groq_class):
+    mock_client = MagicMock()
+    mock_groq_class.return_value = mock_client
+    provider_stream = MagicMock()
+    provider_stream.__iter__.return_value = iter([
+        make_stream_chunk("Kalimat pertama."),
+        make_stream_chunk(" Kalimat kedua."),
+    ])
+    mock_client.chat.completions.create.return_value = provider_stream
+
+    with patch('app.config.Config.GROQ_API_KEY', 'some-key'):
+        service = GroqService()
+        stream = service.stream_response_chunks([{"role": "user", "content": "Halo"}])
+        assert next(stream) == "Kalimat pertama."
+        stream.close()
+
+    provider_stream.close.assert_called_once_with()

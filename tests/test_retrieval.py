@@ -1,4 +1,3 @@
-import pytest
 import logging
 from app.services.retrieval import RetrievalService, _tokenize
 

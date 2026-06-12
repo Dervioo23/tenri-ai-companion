@@ -1,7 +1,5 @@
 import json
 import builtins
-import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 from app.services.document_loader import DocumentLoader
 

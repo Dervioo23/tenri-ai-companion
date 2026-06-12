@@ -1,5 +1,4 @@
 import json
-import pytest
 from unittest.mock import patch
 from app.services.trigger_service import TriggerService
 
@@ -109,6 +108,34 @@ class TestDetect:
         result = svc.detect("kami menggunakan groq sebagai backend llm")
         assert result is not None
         assert result["id"] == "t002"
+
+    def test_single_word_pattern_does_not_match_inside_larger_word(self, tmp_path):
+        svc = make_service(
+            tmp_path,
+            triggers=[{"id": "tx", "patterns": ["mengenal"], "topic": "", "mode": "comment"}],
+        )
+
+        assert svc.detect("presenter sedang mengenalkan teknologi baru") is None
+
+    def test_single_word_pattern_still_matches_as_whole_word(self, tmp_path):
+        svc = make_service(
+            tmp_path,
+            triggers=[{"id": "tx", "patterns": ["mengenal"], "topic": "", "mode": "comment"}],
+        )
+
+        result = svc.detect("sekarang kita mengenal teknologi baru")
+
+        assert result is not None
+        assert result["id"] == "tx"
+
+    def test_multiword_pattern_respects_phrase_boundaries(self, tmp_path):
+        svc = make_service(
+            tmp_path,
+            triggers=[{"id": "tx", "patterns": ["la galigo"], "topic": "", "mode": "comment"}],
+        )
+
+        assert svc.detect("kisah la galigo dibahas hari ini") is not None
+        assert svc.detect("awalan la galigokan tidak valid") is None
 
 
 class TestBuildPrompt:

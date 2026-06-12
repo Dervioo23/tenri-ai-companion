@@ -24,6 +24,9 @@ class BackgroundListener:
         self._speech_service = speech_service
         self._queue: queue.Queue[tuple[str, dict[str, float]]] = queue.Queue(maxsize=5)
         self._muted = threading.Event()
+        self._mute_lock = threading.Lock()
+        self._mute_started_at: float | None = None
+        self._mute_windows: list[tuple[float, float]] = []
         self._unmute_at: float = 0.0
         self._stop_fn = None
         self.available: bool = False
@@ -40,13 +43,17 @@ class BackgroundListener:
         mic = sr.Microphone(device_index=self._speech_service.device_index)
 
         def _callback(r: sr.Recognizer, audio: sr.AudioData) -> None:
-            if self._muted.is_set():
-                return
-            if time.monotonic() - self._unmute_at < self._POST_UNMUTE_BUFFER:
-                logger.debug("BackgroundListener: post-unmute buffer active, audio ignored.")
-                return
-
             try:
+                callback_at = time.monotonic()
+                record_seconds = self._speech_service.audio_duration_seconds(audio)
+                if self._audio_overlaps_mute_window(record_seconds, callback_at):
+                    logger.debug(
+                        "BackgroundListener: audio overlapped TTS mute window, ignored "
+                        "(record=%.2fs).",
+                        record_seconds,
+                    )
+                    return
+
                 stt_started_at = time.monotonic()
                 audio = self._speech_service.cap_audio_for_stt(audio)
                 record_seconds = round(self._speech_service.audio_duration_seconds(audio), 2)
@@ -105,13 +112,55 @@ class BackgroundListener:
     def mute(self) -> None:
         """Disable capture during TTS playback."""
         if self.available:
+            now = time.monotonic()
+            with self._mute_lock:
+                if self._mute_started_at is None:
+                    self._mute_started_at = now
             self._muted.set()
 
     def unmute(self) -> None:
         """Re-enable capture after TTS playback."""
         if self.available:
-            self._unmute_at = time.monotonic()
+            now = time.monotonic()
+            with self._mute_lock:
+                if self._mute_started_at is not None:
+                    self._mute_windows.append(
+                        (self._mute_started_at, now + self._POST_UNMUTE_BUFFER)
+                    )
+                    self._mute_started_at = None
+                self._prune_mute_windows(now)
+            self._unmute_at = now
             self._muted.clear()
+
+    def _prune_mute_windows(self, now: float) -> None:
+        """Keep only recent windows that can overlap a future captured phrase."""
+        retention = max(Config.SPEECH_PHRASE_TIME_LIMIT, 1.0) + self._POST_UNMUTE_BUFFER
+        cutoff = now - retention
+        self._mute_windows = [window for window in self._mute_windows if window[1] >= cutoff]
+
+    def _audio_overlaps_mute_window(
+        self,
+        record_seconds: float,
+        callback_at: float | None = None,
+    ) -> bool:
+        """Return True when captured audio intersects TTS mute/suppression time.
+
+        SpeechRecognition invokes the callback after phrase capture. The capture
+        interval is therefore approximated as ``callback_at - duration`` through
+        ``callback_at``. This catches TTS audio whose callback arrives only after
+        Tenri has already been unmuted.
+        """
+        end_at = callback_at if callback_at is not None else time.monotonic()
+        start_at = end_at - max(0.0, record_seconds)
+
+        with self._mute_lock:
+            self._prune_mute_windows(end_at)
+            windows = list(self._mute_windows)
+            if self._mute_started_at is not None:
+                windows.append((self._mute_started_at, float("inf")))
+
+        return any(start_at <= window_end and end_at >= window_start
+                   for window_start, window_end in windows)
 
     def get(self, timeout: float = 7.0) -> str | None:
         """Block until an utterance is available or timeout expires."""

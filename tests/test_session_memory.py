@@ -1,4 +1,3 @@
-import pytest
 from app.core.session_memory import SessionMemory
 
 def test_session_memory_operations():

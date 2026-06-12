@@ -1,4 +1,3 @@
-﻿import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -132,13 +131,13 @@ class TerminalUI:
     @staticmethod
     def print_slide_startup(slide: dict, current: int, total: int) -> None:
         """Compact slide indicator shown once at startup."""
-        title = slide.get("title", "â€”")
+        title = slide.get("title", "—")
         topics = slide.get("topics", [])
         line = Text()
         line.append(f"[{current}/{total}] ", style="dim cyan")
         line.append(title, style="cyan")
         if topics:
-            line.append(f"  Â·  {', '.join(topics)}", style="dim")
+            line.append(f"  ·  {', '.join(topics)}", style="dim")
         console.print(Panel(line, title="[dim cyan]Slide Aktif[/dim cyan]",
                             border_style="dim cyan", box=box.SIMPLE, expand=False))
         console.print()
@@ -146,7 +145,7 @@ class TerminalUI:
     @staticmethod
     def print_slide_status(slide: dict, current: int, total: int) -> None:
         """Detailed slide info shown on 'status' command."""
-        title = slide.get("title", "â€”")
+        title = slide.get("title", "—")
         topics = slide.get("topics", [])
         notes = slide.get("presenter_notes", "")
         lines: list[str] = [f"[bold]{title}[/bold]"]
@@ -173,10 +172,10 @@ class TerminalUI:
         table.add_column("Topik", style="dim")
         table.add_column("", justify="center", width=1)
         for i, slide in enumerate(slides):
-            marker = "[green]â—[/green]" if (i + 1) == current_1based else ""
+            marker = "[green]●[/green]" if (i + 1) == current_1based else ""
             table.add_row(
                 str(i + 1),
-                slide.get("title", "â€”"),
+                slide.get("title", "—"),
                 ", ".join(slide.get("topics", [])),
                 marker,
             )
@@ -187,9 +186,9 @@ class TerminalUI:
         """Displays active slide change notification."""
         if not slide:
             return
-        title = slide.get("title", "â€”")
+        title = slide.get("title", "—")
         text = Text()
-        text.append(f"â†’ Slide {current}/{total}: ", style="bold cyan")
+        text.append(f"→ Slide {current}/{total}: ", style="bold cyan")
         text.append(title, style="cyan")
         console.print(text)
 
@@ -205,7 +204,7 @@ class TerminalUI:
         label = _labels.get(mode, mode)
         panel = Panel(
             Text(text, style="bold white"),
-            title=f"[bold yellow]Tenri â€” {label}[/bold yellow]",
+            title=f"[bold yellow]Tenri — {label}[/bold yellow]",
             border_style="yellow",
             subtitle="[dim italic]proaktif[/dim italic]",
             subtitle_align="right",
@@ -224,7 +223,7 @@ class TerminalUI:
         for chunk in chunks:
             sid = chunk.get("source_id", "?")
             heading = chunk.get("heading", "")
-            labels.append(f"{sid} â€º {heading}" if heading else sid)
+            labels.append(f"{sid} › {heading}" if heading else sid)
 
         text = Text("Sumber: ", style="dim cyan")
         text.append(" | ".join(labels), style="dim")
@@ -235,8 +234,8 @@ class TerminalUI:
         """Shown in auto-listen mode when captured speech is not addressed to Tenri."""
         preview = user_input[:60] + ("..." if len(user_input) > 60 else "")
         console.print(
-            f"[dim]â†’ terdengar: \"{preview}\" "
-            "â€” awali dengan [bold]Tenri[/bold] untuk memanggil langsung[/dim]"
+            f"[dim]→ terdengar: \"{preview}\" "
+            "— awali dengan [bold]Tenri[/bold] untuk memanggil langsung[/dim]"
         )
 
     @staticmethod
@@ -276,4 +275,3 @@ class TerminalUI:
     def get_spinner(status_text: str) -> Status:
         """Returns a spinner with standardized style."""
         return console.status(f"[bold yellow]{status_text}[/bold yellow]", spinner="arc")
-

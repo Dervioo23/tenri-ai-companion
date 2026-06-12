@@ -10,6 +10,7 @@ Cara pakai:
 
 import argparse
 import json
+import logging
 import re
 import shutil
 import sys
@@ -28,6 +29,7 @@ SLIDES_PATH    = ROOT_DIR / "app" / "presentation" / "slides.json"
 TRIGGERS_PATH  = ROOT_DIR / "app" / "presentation" / "triggers.json"
 
 SUPPORTED = {".pptx", ".docx", ".pdf"}
+logger = logging.getLogger("AICompanion.ImportDocument")
 
 
 # ------------------------------------------------------------------ readers
@@ -97,8 +99,12 @@ def _is_docx_heading(para) -> bool:
                 from docx.shared import Pt
                 if run.font.size >= Pt(14):
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Gagal memeriksa ukuran font heading DOCX untuk paragraf %r: %s",
+                    text[:60],
+                    exc,
+                )
 
     return False
 
@@ -233,6 +239,31 @@ def _keywords(text: str, max_words: int = 5) -> list[str]:
     return result
 
 
+_GENERIC_SINGLE_WORD_TRIGGERS = frozenset({
+    "awal", "akhir", "bagian", "dasar", "definisi", "kecerdasan",
+    "generatif", "istilah", "kesimpulan", "kritis", "manfaat", "mengenal",
+    "pelatihan", "pemetaan", "pengenalan", "penutup", "ringkasan", "risiko",
+    "sikap", "teknologi", "tepat", "umum",
+})
+
+
+def _safe_trigger_patterns(patterns: list[str], limit: int = 5) -> list[str]:
+    """Keep specific phrases and domain terms; reject generic one-word triggers."""
+    result: list[str] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        normalized = re.sub(r"\s+", " ", pattern.lower()).strip()
+        if not normalized or normalized in seen:
+            continue
+        if " " not in normalized and normalized in _GENERIC_SINGLE_WORD_TRIGGERS:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+        if len(result) >= limit:
+            break
+    return result
+
+
 def _make_slides_json(sections: list[dict]) -> list[dict]:
     result = []
     for s in sections:
@@ -262,11 +293,11 @@ def _make_triggers_json(sections: list[dict]) -> list[dict]:
     result = []
     for i, s in enumerate(sections):
         title, body = s["title"], s["body"]
-        patterns = list(dict.fromkeys(
+        patterns = _safe_trigger_patterns(
             [title.lower()]
             + _keywords(title, 2)
             + _keywords(" ".join(body[:3]), 3)
-        ))[:5]
+        )
         if not patterns:
             continue
         mode = modes_cycle[i % len(modes_cycle)]

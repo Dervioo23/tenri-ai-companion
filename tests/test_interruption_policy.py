@@ -1,4 +1,3 @@
-import pytest
 from app.services.interruption_policy import InterruptionPolicy
 
 
