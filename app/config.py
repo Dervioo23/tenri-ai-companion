@@ -54,6 +54,12 @@ class Config:
     ELEVENLABS_STREAMING = os.getenv("ELEVENLABS_STREAMING", "false").strip().lower() == "true"
     # PCM tanpa biaya decode MP3. Format: pcm_16000 / pcm_22050 / pcm_24000 / pcm_44100.
     ELEVENLABS_STREAM_OUTPUT_FORMAT = os.getenv("ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_22050").strip()
+    # Complete phrases can bypass ElevenLabs' internal text buffering.
+    ELEVENLABS_STREAM_AUTO_MODE = os.getenv("ELEVENLABS_STREAM_AUTO_MODE", "true").strip().lower() == "true"
+    ELEVENLABS_STREAM_INACTIVITY_TIMEOUT = _get_int("ELEVENLABS_STREAM_INACTIVITY_TIMEOUT", 20)
+    # websockets 16 auto-discovers the Windows system proxy by default. Direct
+    # mode is more predictable for a live demo; opt in only when required.
+    ELEVENLABS_STREAM_USE_PROXY = os.getenv("ELEVENLABS_STREAM_USE_PROXY", "false").strip().lower() == "true"
     ELEVENLABS_CONNECT_TIMEOUT = _get_float("ELEVENLABS_CONNECT_TIMEOUT", 4.0)
     ELEVENLABS_READ_TIMEOUT = _get_float("ELEVENLABS_READ_TIMEOUT", 12.0)
     ELEVENLABS_CIRCUIT_BREAKER_SECONDS = _get_float("ELEVENLABS_CIRCUIT_BREAKER_SECONDS", 60.0)

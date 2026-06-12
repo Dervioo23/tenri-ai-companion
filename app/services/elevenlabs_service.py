@@ -24,6 +24,7 @@ class ElevenLabsService:
         self.voice_id = Config.ELEVENLABS_VOICE_ID
         # client is truthy when key is available, preserving existing checks.
         self.client = True if Config.ELEVENLABS_ENABLED and self.api_key else None
+        self._http = requests.Session() if self.client else None
 
         if not Config.ELEVENLABS_ENABLED:
             logger.warning("ElevenLabs disabled by ELEVENLABS_ENABLED=false.")
@@ -125,7 +126,8 @@ class ElevenLabsService:
             if lang_code:
                 payload["language_code"] = lang_code
 
-            response = requests.post(
+            http_client = getattr(self, "_http", None) or requests
+            response = http_client.post(
                 url,
                 json=payload,
                 headers=headers,
@@ -154,3 +156,12 @@ class ElevenLabsService:
         except Exception as e:
             logger.error(f"Error during ElevenLabs TTS generation: {e}", exc_info=True)
             return None
+
+    def close(self) -> None:
+        """Close the persistent HTTP connection pool."""
+        http_client = getattr(self, "_http", None)
+        if http_client is not None:
+            try:
+                http_client.close()
+            except Exception as e:
+                logger.debug("Could not close ElevenLabs HTTP session: %s", e)

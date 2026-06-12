@@ -210,6 +210,20 @@ def test_tts_disabled_by_feature_flag(caplog) -> None:
     assert "ElevenLabs disabled" in caplog.text
 
 
+def test_enabled_service_creates_and_closes_persistent_http_session() -> None:
+    session = MagicMock()
+    with (
+        patch("app.services.elevenlabs_service.Config.ELEVENLABS_ENABLED", True),
+        patch("app.services.elevenlabs_service.Config.ELEVENLABS_API_KEY", "test-key"),
+        patch("app.services.elevenlabs_service.requests.Session", return_value=session),
+    ):
+        service = ElevenLabsService()
+        service.close()
+
+    assert service._http is session
+    session.close.assert_called_once()
+
+
 def test_tts_returns_none_when_client_is_none(tmp_path) -> None:
     service = make_service(tmp_path)
     service.client = None

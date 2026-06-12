@@ -839,21 +839,24 @@ class InteractionLoop:
                         # failure it falls back to REST/edge file playback.
                         self.bg_listener.mute()
 
-                        def _stream_play() -> tuple[bool, float]:
+                        def _stream_play() -> tuple[bool, float, float]:
                             box = {"first": 0.0}
 
                             def _on_first() -> None:
                                 box["first"] = time.monotonic()
 
                             ok = self.streaming_tts.speak(text, on_first_audio=_on_first)
+                            playback_s = getattr(self.streaming_tts, "last_playback_seconds", 0.0)
                             if not ok:
                                 audio_file = self._tts_with_fallback(text)
                                 if audio_file:
                                     if not box["first"]:
                                         box["first"] = time.monotonic()
+                                    play_started = time.monotonic()
                                     self.audio_player.play_audio(audio_file)
+                                    playback_s = time.monotonic() - play_started
                                     ok = True
-                            return ok, box["first"]
+                            return ok, box["first"], playback_s
 
                         return executor.submit(_stream_play)
                     if tts_ok:
@@ -943,9 +946,10 @@ class InteractionLoop:
                     try:
                         if streaming:
                             # Worker already streamed+played; just record first-voice.
-                            played, first_ts = future.result(timeout=60)
+                            played, first_ts, playback_s = future.result(timeout=60)
                             if played and first_ts and not _t_first_voice:
                                 _t_first_voice = first_ts
+                            _audio_playback_total += playback_s
                             continue
                         audio_file, tts_generation_s = future.result(timeout=30)
                         _tts_generation_total += tts_generation_s
@@ -1459,6 +1463,7 @@ class InteractionLoop:
         self.vision_service.stop()
         self.bg_listener.stop()
         self.audio_player.stop()
+        self.elevenlabs_service.close()
         
         print("Membersihkan berkas audio sementara...")
         FileManager.cleanup_temp_files()

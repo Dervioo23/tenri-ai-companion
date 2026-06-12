@@ -18,6 +18,8 @@ def _svc() -> StreamingTTS:
     svc._ws_ok = True
     svc.available = True
     svc._rate = 22050
+    svc.last_playback_seconds = 0.0
+    StreamingTTS._circuit_open_until = 0.0
     return svc
 
 
@@ -35,19 +37,24 @@ def test_build_uri_contains_voice_model_and_format():
     svc = _svc()
     with patch("app.services.streaming_tts.Config.ELEVENLABS_MODEL", "eleven_flash_v2_5"), \
          patch("app.services.streaming_tts.Config.ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_22050"), \
-         patch("app.services.streaming_tts.Config.ELEVENLABS_OPTIMIZE_LATENCY", 3):
+         patch("app.services.streaming_tts.Config.ELEVENLABS_STREAM_AUTO_MODE", True), \
+         patch("app.services.streaming_tts.Config.ELEVENLABS_STREAM_INACTIVITY_TIMEOUT", 20), \
+         patch("app.services.streaming_tts.Config.APP_LANGUAGE", "id"):
         uri = svc._build_uri()
     assert uri.startswith("wss://api.elevenlabs.io/v1/text-to-speech/voice-1/stream-input")
     assert "model_id=eleven_flash_v2_5" in uri
     assert "output_format=pcm_22050" in uri
-    assert "optimize_streaming_latency=3" in uri
+    assert "auto_mode=true" in uri
+    assert "inactivity_timeout=20" in uri
+    assert "language_code=id" in uri
+    assert "optimize_streaming_latency" not in uri
 
 
-def test_bos_message_includes_language_for_known_iso():
+def test_bos_message_keeps_language_in_uri_not_payload():
     svc = _svc()
     with patch("app.services.streaming_tts.Config.APP_LANGUAGE", "id"):
         msg = svc._bos_message()
-    assert msg["language_code"] == "id"
+    assert "language_code" not in msg
     assert "voice_settings" in msg
 
 
@@ -76,6 +83,14 @@ def test_speak_swallows_errors_and_returns_false():
     svc = _svc()
     with patch.object(svc, "_run", side_effect=RuntimeError("boom")):
         assert svc.speak("halo tenri") is False
+
+
+def test_speak_skips_network_while_circuit_is_open():
+    svc = _svc()
+    StreamingTTS._circuit_open_until = float("inf")
+    with patch.object(svc, "_run") as run:
+        assert svc.speak("halo tenri") is False
+    run.assert_not_called()
 
 
 # ------------------------------------------------------------------ websocket session
@@ -116,6 +131,7 @@ def test_session_plays_pcm_and_fires_first_audio_callback(monkeypatch):
     captured_ws = {}
 
     def _connect(*args, **kwargs):
+        assert kwargs["proxy"] is None
         ws = _FakeWS(messages)
         captured_ws["ws"] = ws
         return ws
@@ -141,6 +157,7 @@ def test_session_plays_pcm_and_fires_first_audio_callback(monkeypatch):
     fake_stream.write.assert_called_once_with(pcm)
     # first-audio callback fired exactly once
     assert len(first_audio_calls) == 1
+    assert svc.last_playback_seconds >= 0.0
     # protocol: BOS (voice_settings) + text + EOS
     sent = [json.loads(m) for m in captured_ws["ws"].sent]
     assert "voice_settings" in sent[0]
