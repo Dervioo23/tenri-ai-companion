@@ -40,6 +40,7 @@ class BackgroundListener:
             return False
 
         recognizer = self._speech_service.recognizer
+        active_threshold = self._speech_service.calibrate_background_energy()
         mic = sr.Microphone(device_index=self._speech_service.device_index)
 
         def _callback(r: sr.Recognizer, audio: sr.AudioData) -> None:
@@ -100,7 +101,10 @@ class BackgroundListener:
                 phrase_time_limit=Config.SPEECH_PHRASE_TIME_LIMIT,
             )
             self.available = True
-            logger.info("BackgroundListener started: continuous capture active.")
+            logger.info(
+                "BackgroundListener started: continuous capture active (energy_threshold=%d).",
+                active_threshold,
+            )
             return True
         except Exception as e:
             logger.warning(

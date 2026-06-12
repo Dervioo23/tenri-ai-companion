@@ -6,6 +6,18 @@ import pytest
 import speech_recognition as sr
 
 
+def test_background_energy_threshold_caps_unrealistic_configuration() -> None:
+    assert SpeechService.background_energy_threshold(447, 1200) == 715
+
+
+def test_background_energy_threshold_keeps_configured_ceiling() -> None:
+    assert SpeechService.background_energy_threshold(600, 700) == 700
+
+
+def test_background_energy_threshold_has_noise_floor() -> None:
+    assert SpeechService.background_energy_threshold(0, 700) == 300
+
+
 def test_speech_service_exists() -> None:
     service = SpeechService()
     assert isinstance(service.microphone_available, bool)

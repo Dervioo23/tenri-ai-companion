@@ -127,6 +127,9 @@ _DOMAIN_GLOSSARY_PATTERNS: list[tuple[re.Pattern, str]] = [
 
 
 class SpeechService:
+    _BACKGROUND_ENERGY_FLOOR = 300
+    _BACKGROUND_AMBIENT_MULTIPLIER = 1.6
+
     def __init__(self):
         self.recognizer = sr.Recognizer()
         self.recognizer.energy_threshold = Config.SPEECH_ENERGY_THRESHOLD
@@ -180,6 +183,64 @@ class SpeechService:
             logger.warning(
                 f"Microphone not available or PyAudio not installed: {e}. Fallback to text input."
             )
+
+    @classmethod
+    def background_energy_threshold(cls, ambient_rms: float, configured: int) -> int:
+        """Choose a usable fixed threshold without exceeding the configured ceiling."""
+        recommended = max(
+            cls._BACKGROUND_ENERGY_FLOOR,
+            int(max(0.0, ambient_rms) * cls._BACKGROUND_AMBIENT_MULTIPLIER),
+        )
+        return min(max(1, int(configured)), recommended)
+
+    def calibrate_background_energy(self, duration: float = 0.4) -> int:
+        """Measure room noise once before continuous listening starts.
+
+        BackgroundListener uses a fixed energy gate. Treat the value from `.env`
+        as a ceiling so an accidentally huge value cannot make Tenri deaf.
+        """
+        configured = max(1, int(Config.SPEECH_ENERGY_THRESHOLD))
+        if not self.microphone_available:
+            return configured
+
+        try:
+            with sr.Microphone(device_index=self.device_index) as source:
+                chunks = max(1, int(source.SAMPLE_RATE * duration / source.CHUNK))
+                sum_squares = 0
+                sample_count = 0
+                peak = 0
+                for _ in range(chunks):
+                    data = source.stream.read(source.CHUNK)
+                    for (sample,) in struct.iter_unpack("<h", data):
+                        absolute = abs(sample)
+                        peak = max(peak, absolute)
+                        sum_squares += sample * sample
+                        sample_count += 1
+
+            ambient_rms = math.sqrt(sum_squares / sample_count) if sample_count else 0.0
+            active = self.background_energy_threshold(ambient_rms, configured)
+            self.recognizer.energy_threshold = active
+            logger.info(
+                "Microphone gate calibrated: ambient_rms=%.0f peak=%d configured=%d active=%d",
+                ambient_rms,
+                peak,
+                configured,
+                active,
+            )
+            if peak < 10:
+                logger.warning(
+                    "Microphone input is nearly silent. Check MIC_DEVICE_INDEX=%s and Windows input permissions.",
+                    self.device_index,
+                )
+            return active
+        except Exception as exc:
+            self.recognizer.energy_threshold = configured
+            logger.warning(
+                "Microphone gate calibration failed (%s); using configured threshold %d.",
+                exc,
+                configured,
+            )
+            return configured
 
     @staticmethod
     def audio_duration_seconds(audio: sr.AudioData) -> float:
@@ -597,4 +658,3 @@ class SpeechService:
         except Exception as e:
             logger.error(f"Critical error during recording/transcription: {e}", exc_info=True)
             return f"[ERROR: {e}]", False
-

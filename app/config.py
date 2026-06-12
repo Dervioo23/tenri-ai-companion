@@ -117,7 +117,7 @@ class Config:
     MIC_DEVICE_INDEX = os.getenv("MIC_DEVICE_INDEX", "").strip()
     # 800 is safer for live demos with speaker output in the same room.
     # Lower values make Tenri more likely to hear room noise or her own TTS.
-    _SAFE_SPEECH_ENERGY_THRESHOLD = 800 if DEMO_SAFE_MODE else 700
+    _SAFE_SPEECH_ENERGY_THRESHOLD = 700 if DEMO_SAFE_MODE else 650
     _SAFE_SPEECH_PHRASE_TIME_LIMIT = 6.0 if DEMO_SAFE_MODE else 8.0
     _SAFE_STT_AUDIO_HARD_LIMIT = 6.0 if DEMO_SAFE_MODE else 8.0
     SPEECH_ENERGY_THRESHOLD = _get_int("SPEECH_ENERGY_THRESHOLD", _SAFE_SPEECH_ENERGY_THRESHOLD)
