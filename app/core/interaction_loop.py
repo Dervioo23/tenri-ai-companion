@@ -37,6 +37,8 @@ from app.pipeline.capture_stage import CaptureStage, CaptureStatus
 from app.pipeline.event_bus import PipelineEventBus
 from app.pipeline.events import PipelineEvent, PipelineEventType
 from app.pipeline.trace import PipelineTraceWriter
+from app.pipeline.router_stage import RouteAction, RouterStage
+from app.pipeline.brain_stage import BrainStage
 
 logger = logging.getLogger("AICompanion.InteractionLoop")
 
@@ -138,13 +140,6 @@ _WAKE_ACK_BLOCKLIST_RE = re.compile(
     re.IGNORECASE,
 )
 
-_SLIDE_EXPLANATION_RE = re.compile(
-    r"\b(?:jelaskan|terangkan|paparkan|uraikan|bahas|ulas|ceritakan)\b"
-    r".{0,40}\bslide\b|\bslide\b.{0,40}"
-    r"\b(?:jelaskan|terangkan|paparkan|uraikan|bahas|ulas|ceritakan)\b",
-    re.IGNORECASE,
-)
-
 _DETAIL_REQUEST_RE = re.compile(
     r"\b(?:detail|lengkap|panjang|mendalam|lebih\s+jelas|lebih\s+rinci|"
     r"secara\s+rinci|uraian\s+panjang)\b",
@@ -230,6 +225,21 @@ class InteractionLoop:
         # Query rewriter — converts vague/context-dependent user inputs into
         # focused BM25 search queries using slide context + conversation history.
         self.query_rewriter = QueryRewriter()
+
+        self.router_stage = RouterStage(
+            self.intent_classifier,
+            wake_words=Config.WAKE_WORDS,
+            audience_markers=_AUDIENCE_MARKERS,
+            closing_phrases=_CLOSING_PHRASES,
+            acknowledgment_phrases=_ACKNOWLEDGMENT_PHRASES,
+            question_detector=_has_question_word,
+        )
+        self.brain_stage = BrainStage(
+            retrieval=self.retrieval,
+            query_rewriter=self.query_rewriter,
+            prompt_builder=self.prompt_builder,
+            deprioritized_slide_sources=_SLIDE_EXPLANATION_DEPRIORITIZED_SOURCES,
+        )
 
         # Answer verifier — grounding check: ensures Tenri's response is supported
         # by retrieved context chunks via BOW cosine similarity.
@@ -524,7 +534,7 @@ class InteractionLoop:
     @staticmethod
     def _is_slide_explanation_request(user_input: str) -> bool:
         """Detect direct requests like "jelaskan slide ini"."""
-        return bool(_SLIDE_EXPLANATION_RE.search(user_input or ""))
+        return BrainStage.is_slide_explanation_request(user_input)
 
     @staticmethod
     def _input_requests_detail(user_input: str) -> bool:
@@ -534,35 +544,15 @@ class InteractionLoop:
     @staticmethod
     def _slide_explanation_query(slide: dict | None, fallback: str) -> str:
         """Build retrieval query from slide substance, not the generic command."""
-        if not slide:
-            return fallback
-        parts = [
-            slide.get("subtitle", ""),
-            slide.get("title", ""),
-            " ".join(slide.get("topics", [])),
-            slide.get("presenter_notes", ""),
-            slide.get("tenri_role", ""),
-        ]
-        query = " ".join(p for p in parts if p).strip()
-        return query or fallback
+        return BrainStage.slide_explanation_query(slide, fallback)
 
     @staticmethod
     def _filter_slide_explanation_chunks(chunks: list) -> list:
-        """Prefer slide/topic sources over persona or project-meta documents.
-
-        Persona docs are useful for Tenri's voice, but they pollute "jelaskan
-        slide ini" answers when the active slide already has relevant material.
-        Keep them only as a fallback if no better chunk was retrieved.
-        """
-        if not chunks:
-            return []
-
-        preferred = [
-            chunk for chunk in chunks
-            if str(chunk.get("source_id", "")).lower()
-            not in _SLIDE_EXPLANATION_DEPRIORITIZED_SOURCES
-        ]
-        return preferred or chunks
+        """Compatibility wrapper for the BrainStage source-selection rule."""
+        return BrainStage.filter_slide_explanation_chunks(
+            chunks,
+            _SLIDE_EXPLANATION_DEPRIORITIZED_SOURCES,
+        )
 
     @staticmethod
     def _live_char_budget(user_input: str) -> int:
@@ -634,23 +624,23 @@ class InteractionLoop:
 
     def _build_interruption_context(self, topic: str, slide: dict | None) -> tuple[str, bool]:
         """Retrieve knowledge base context for a proactive interruption."""
+        brain_stage = getattr(self, "brain_stage", None)
+        if brain_stage is not None:
+            return brain_stage.interruption_context(topic, slide)
+
+        # Compatibility for focused unit tests that construct InteractionLoop
+        # via __new__ without running the service initializer.
         parts = [topic] if topic else []
         if slide:
             parts.append(slide.get("title", ""))
             parts.extend(slide.get("topics", []))
-
-        query = " ".join(p for p in parts if p).strip()
+        query = " ".join(part for part in parts if part).strip()
         if not query:
             return "", True
-
         chunks = self.retrieval.search(query)
         if chunks and not self.retrieval.has_strong_match(chunks):
-            logger.info("Interruption retrieval discarded: weak query/source overlap.")
             chunks = []
         context_str = self.retrieval.format_context(chunks) if chunks else ""
-        if chunks:
-            sources_used = list({c.get("source_id") for c in chunks})
-            logger.info(f"Interruption sources used: {sources_used}")
         return context_str, not bool(chunks)
 
     def _do_interruption(
@@ -1169,14 +1159,12 @@ class InteractionLoop:
 
                 # 3. Intent classification — routing ucapan presenter ke 5 kategori
                 _in_conversation = time.monotonic() < self._conversation_until
-                intent_result = self.intent_classifier.classify(
+                route_decision = self.router_stage.route(
                     user_input,
-                    wake_words=Config.WAKE_WORDS,
-                    audience_markers=_AUDIENCE_MARKERS,
-                    closing_phrases=_CLOSING_PHRASES,
                     in_conversation=_in_conversation,
                     quiet_mode=self._quiet_mode,
                 )
+                intent_result = route_decision.intent_result
                 logger.info(f"Intent: {intent_result.intent.value} — {intent_result.reason}")
                 self._emit_pipeline_event(
                     PipelineEventType.INTENT_CLASSIFIED,
@@ -1187,7 +1175,7 @@ class InteractionLoop:
                 )
 
                 # 4. Route berdasarkan intent
-                if intent_result.intent == Intent.CLOSING_TENRI:
+                if route_decision.action is RouteAction.CLOSE:
                     self._emit_pipeline_event(
                         PipelineEventType.TURN_SKIPPED,
                         turn_id,
@@ -1211,7 +1199,7 @@ class InteractionLoop:
                     state_manager.set_state(AppState.IDLE)
                     continue
 
-                if intent_result.intent == Intent.ASKING_AUDIENCE:
+                if route_decision.action is RouteAction.IGNORE_AUDIENCE:
                     self._emit_pipeline_event(
                         PipelineEventType.TURN_SKIPPED,
                         turn_id,
@@ -1221,7 +1209,7 @@ class InteractionLoop:
                     state_manager.set_state(AppState.IDLE)
                     continue
 
-                if intent_result.intent in (Intent.EXPLAINING, Intent.AMBIENT, Intent.NOISE):
+                if route_decision.action is RouteAction.MONITOR:
                     self._emit_pipeline_event(
                         PipelineEventType.TURN_SKIPPED,
                         turn_id,
@@ -1263,14 +1251,14 @@ class InteractionLoop:
 
                 # ASKING_TENRI — lanjut ke pipeline LLM
                 # Update user_input: hilangkan wake word jika ada
-                user_input = intent_result.query if intent_result.query is not None else user_input
-                _was_direct_call = intent_result.was_wake_word
-                if intent_result.was_wake_word:
+                user_input = route_decision.query
+                _was_direct_call = route_decision.was_direct_call
+                if _was_direct_call:
                     self._quiet_mode = False
 
                 # Hanya wake word tanpa query: jangan panggil LLM/retrieval.
                 # Sapaan harus terasa instan; kecerdasan model baru dipakai saat ada pertanyaan.
-                if intent_result.was_wake_word and not user_input.strip():
+                if route_decision.action is RouteAction.WAKE_ACK:
                     self._emit_pipeline_event(
                         PipelineEventType.TURN_SKIPPED,
                         turn_id,
@@ -1293,22 +1281,22 @@ class InteractionLoop:
                     state_manager.set_state(AppState.IDLE)
                     continue
 
-                _has_question = _has_question_word(user_input)
+                _has_question = route_decision.has_question
 
                 # Acknowledgment singkat dalam conversation window → Tenri diam, tidak panggil LLM.
                 # Hanya berlaku jika bukan panggilan wake word langsung dan tidak ada kata tanya.
-                if not _was_direct_call and not _has_question:
-                    _norm_ack = re.sub(r'[^\w\s]', ' ', user_input.lower())
-                    _norm_ack = re.sub(r'\s+', ' ', _norm_ack).strip()
-                    if _norm_ack in _ACKNOWLEDGMENT_PHRASES:
-                        self._emit_pipeline_event(
-                            PipelineEventType.TURN_SKIPPED,
-                            turn_id,
-                            reason="short_acknowledgment",
-                        )
-                        logger.info(f"Acknowledgment dalam conversation window — Tenri diam: '{_norm_ack}'")
-                        state_manager.set_state(AppState.IDLE)
-                        continue
+                if route_decision.action is RouteAction.IGNORE_ACK:
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="short_acknowledgment",
+                    )
+                    logger.info(
+                        "Acknowledgment dalam conversation window — Tenri diam: '%s'",
+                        route_decision.normalized_ack,
+                    )
+                    state_manager.set_state(AppState.IDLE)
+                    continue
 
                 # Auto-advance slide dari kata kunci dalam query
                 if self.tracker.is_active():
@@ -1348,33 +1336,21 @@ class InteractionLoop:
                 state_manager.set_state(AppState.THINKING)
 
                 slide = self.tracker.current_slide()
-                is_slide_explanation = self._is_slide_explanation_request(user_input)
-                if is_slide_explanation:
-                    enriched_query = self._slide_explanation_query(slide, user_input)
-                    logger.info("Slide explanation route active.")
-                else:
-                    enriched_query = self.query_rewriter.rewrite(
-                        user_input,
-                        slide,
-                        self.memory.get_messages(),
-                    )
-                if enriched_query != user_input:
-                    logger.info(f"QueryRewriter: '{user_input[:50]}' → '{enriched_query[:80]}'")
-                retrieval_started_at = time.monotonic()
-                context_chunks = self.retrieval.search(enriched_query)
-                if is_slide_explanation:
-                    filtered_chunks = self._filter_slide_explanation_chunks(context_chunks)
-                    if len(filtered_chunks) != len(context_chunks):
-                        logger.info(
-                            "Slide explanation retrieval filtered persona/project-meta chunks."
-                        )
-                    context_chunks = filtered_chunks
-                if context_chunks and not self.retrieval.has_strong_match(context_chunks):
-                    logger.info("Retrieval discarded: weak query/source overlap.")
-                    context_chunks = []
-                context_str = self.retrieval.format_context(context_chunks)
-                no_context = not bool(context_chunks)
-                self._last_retrieval_seconds = round(time.monotonic() - retrieval_started_at, 2)
+                history = self.memory.get_messages()
+                slide_str = self.tracker.format_context(slide) if slide else ""
+                narrative_str = self.tracker.format_narrative_context()
+                brain_result = self.brain_stage.prepare(
+                    user_input=user_input,
+                    history=history,
+                    slide=slide,
+                    slide_str=slide_str,
+                    narrative_str=narrative_str,
+                    vision_context=vision_context,
+                )
+                messages = brain_result.messages
+                context_chunks = brain_result.context_chunks
+                context_str = brain_result.context_str
+                self._last_retrieval_seconds = brain_result.retrieval_seconds
                 logger.info(f"Latency retrieval: {self._last_retrieval_seconds:.2f}s")
                 self._emit_pipeline_event(
                     PipelineEventType.RETRIEVAL_COMPLETED,
@@ -1387,28 +1363,6 @@ class InteractionLoop:
                     sources_used = list({c.get("source_id") for c in context_chunks})
                     logger.info(f"Sources used: {sources_used}")
                     TerminalUI.print_retrieval_sources(context_chunks)
-
-                slide_str = self.tracker.format_context(slide) if slide else ""
-                narrative_str = self.tracker.format_narrative_context()
-
-                if is_slide_explanation:
-                    messages = self.prompt_builder.build_slide_explanation_messages(
-                        user_input=user_input,
-                        history=self.memory.get_messages(),
-                        slide_str=slide_str,
-                        context_str=context_str,
-                        narrative_str=narrative_str,
-                    )
-                else:
-                    messages = self.prompt_builder.build_messages(
-                        user_input=user_input,
-                        history=self.memory.get_messages(),
-                        vision_context=vision_context,
-                        slide_str=slide_str,
-                        context_str=context_str,
-                        no_context=no_context,
-                        narrative_str=narrative_str,
-                    )
 
                 self._last_llm_seconds = 0.0
                 self._last_first_voice_seconds = 0.0
