@@ -2,6 +2,22 @@ from unittest.mock import MagicMock, patch
 
 from app.core.interaction_loop import InteractionLoop, _STATIC_TTS_PHRASES, _WAKE_ACK_RESPONSES
 from app.state import AppState
+from app.services.background_listener import BackgroundListener
+
+
+def test_failed_preferred_listener_falls_back_to_background_listener() -> None:
+    loop = InteractionLoop.__new__(InteractionLoop)
+    loop.speech_service = MagicMock()
+    preferred = MagicMock()
+    preferred.start.return_value = False
+    loop.bg_listener = preferred
+
+    with patch.object(BackgroundListener, "start", return_value=True) as fallback_start:
+        assert loop._start_background_listener() is True
+
+    preferred.stop.assert_called_once_with()
+    assert isinstance(loop.bg_listener, BackgroundListener)
+    fallback_start.assert_called_once_with()
 
 
 def test_auto_slide_trigger_prints_slide_change() -> None:
@@ -568,6 +584,36 @@ def test_stream_and_speak_respects_character_budget() -> None:
 
     assert len(result) <= 90
     assert result.endswith(".")
+
+
+def test_stream_and_speak_uses_streaming_tts_when_available() -> None:
+    """With streaming TTS available, sentences stream+play instead of file playback (TAHAP 2)."""
+    loop = InteractionLoop.__new__(InteractionLoop)
+    llm = MagicMock()
+    llm.client = True
+    llm.stream_response_chunks.return_value = iter(["Halo, saya Tenri."])
+    loop._llm = MagicMock(return_value=llm)
+    loop.elevenlabs_service = MagicMock()
+    loop.elevenlabs_service.client = True
+    loop.local_tts_service = MagicMock()
+    loop.local_tts_service.available = False
+    loop.bg_listener = MagicMock()
+    loop.audio_player = MagicMock()
+    loop.streaming_tts = MagicMock()
+    loop.streaming_tts.available = True
+    loop.streaming_tts.speak.return_value = True
+
+    with (
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", True),
+        patch("app.core.interaction_loop.state_manager.set_state"),
+        patch("app.core.interaction_loop.time.sleep"),
+    ):
+        result = loop._stream_and_speak([{"role": "user", "content": "prompt"}], max_sentences=1)
+
+    assert result == "Halo, saya Tenri."
+    loop.streaming_tts.speak.assert_called_once()
+    assert loop.streaming_tts.speak.call_args.args[0] == "Halo, saya Tenri."
+    loop.audio_player.play_audio.assert_not_called()  # streamed, no file playback
 
 
 def test_stream_and_speak_closes_stream_after_early_sentence_limit() -> None:

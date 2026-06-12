@@ -30,6 +30,7 @@ from app.utils.text_utils import (
 from app.services.intent_classifier import IntentClassifier, Intent
 from app.services.background_listener import BackgroundListener
 from app.services.local_tts_service import LocalTTSService
+from app.services.streaming_tts import StreamingTTS
 from app.services.query_rewriter import QueryRewriter
 from app.services.answer_verifier import AnswerVerifier
 
@@ -216,6 +217,9 @@ class InteractionLoop:
         # Local TTS fallback (XTTS v2) — dipakai saat ElevenLabs tidak tersedia
         self.local_tts_service = LocalTTSService()
 
+        # Streaming TTS (WebSocket) — opt-in; plays PCM as it arrives (TAHAP 2).
+        self.streaming_tts = StreamingTTS()
+
         # Query rewriter — converts vague/context-dependent user inputs into
         # focused BM25 search queries using slide context + conversation history.
         self.query_rewriter = QueryRewriter()
@@ -224,10 +228,11 @@ class InteractionLoop:
         # by retrieved context chunks via BOW cosine similarity.
         self.answer_verifier = AnswerVerifier()
 
-        # Background listener — continuous capture + mute gate saat TTS
-        self.bg_listener = BackgroundListener(self.speech_service)
+        # Background listener — continuous capture + mute gate saat TTS.
+        # Prefer Silero VAD endpointing when enabled & usable; else energy-gated.
+        self.bg_listener = self._build_listener()
         if Config.VAD_ENABLED and not Config.PUSH_TO_TALK_ENABLED and Config.VOICE_INPUT_ENABLED:
-            self.bg_listener.start()
+            self._start_background_listener()
 
         # Optional JARVIS visual display
         self.jarvis_ui = jarvis_ui
@@ -269,6 +274,39 @@ class InteractionLoop:
         """Create the configured LLM provider while keeping Groq available for STT."""
         from app.services.llm_factory import build_llm_service
         return build_llm_service(self.groq_service)
+
+    def _build_listener(self):
+        """Pick the capture backend: Silero VAD when enabled & usable, else energy-gated.
+
+        Both expose the same interface, so the rest of the loop is agnostic. Any
+        failure to load the VAD model falls back to BackgroundListener.
+        """
+        if Config.SILERO_VAD_ENABLED:
+            try:
+                from app.services.vad_listener import VadListener
+                listener = VadListener(self.speech_service)
+                if listener.usable:
+                    logger.info("Capture backend: Silero VAD (VadListener).")
+                    return listener
+                logger.warning("Silero VAD not usable; falling back to BackgroundListener.")
+            except Exception as e:
+                logger.warning("Silero VAD init failed (%s); falling back to BackgroundListener.", e)
+        return BackgroundListener(self.speech_service)
+
+    def _start_background_listener(self) -> bool:
+        """Start continuous capture and recover if the preferred backend is unhealthy."""
+        if self.bg_listener.start():
+            return True
+
+        if isinstance(self.bg_listener, BackgroundListener):
+            return False
+
+        logger.warning(
+            "Preferred capture backend failed at startup; switching to BackgroundListener."
+        )
+        self.bg_listener.stop()
+        self.bg_listener = BackgroundListener(self.speech_service)
+        return self.bg_listener.start()
 
     def _llm(self):
         """Return active LLM service; fallback keeps older tests and scripts working."""
@@ -760,6 +798,13 @@ class InteractionLoop:
         tts_ok = Config.VOICE_OUTPUT_ENABLED and (
             self.elevenlabs_service.client is not None or self.local_tts_service.available
         )
+        # TAHAP 2: when streaming TTS is on, each sentence is streamed+played in one
+        # serialized worker (max_workers=1) so PCM chunks play in order; the REST
+        # path keeps 2 workers to overlap generation. Streaming falls back per
+        # sentence to REST/edge inside the worker. getattr keeps older tests that
+        # build a partial loop working (same pattern as _llm()).
+        _streaming_tts = getattr(self, "streaming_tts", None)
+        streaming = tts_ok and _streaming_tts is not None and _streaming_tts.available
 
         stream = None
         try:
@@ -779,7 +824,7 @@ class InteractionLoop:
             _audio_playback_total = 0.0
             grounding_failed = False
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=(1 if streaming else 2)) as executor:
                 def _remaining_chars() -> int:
                     if max_chars <= 0:
                         return 0
@@ -788,6 +833,29 @@ class InteractionLoop:
                     return max_chars - current - separator
 
                 def _submit_tts(text: str) -> concurrent.futures.Future:
+                    if streaming:
+                        # Audio is imminent — mute capture now (unmuted after the
+                        # playback loop). The worker streams PCM and plays it; on
+                        # failure it falls back to REST/edge file playback.
+                        self.bg_listener.mute()
+
+                        def _stream_play() -> tuple[bool, float]:
+                            box = {"first": 0.0}
+
+                            def _on_first() -> None:
+                                box["first"] = time.monotonic()
+
+                            ok = self.streaming_tts.speak(text, on_first_audio=_on_first)
+                            if not ok:
+                                audio_file = self._tts_with_fallback(text)
+                                if audio_file:
+                                    if not box["first"]:
+                                        box["first"] = time.monotonic()
+                                    self.audio_player.play_audio(audio_file)
+                                    ok = True
+                            return ok, box["first"]
+
+                        return executor.submit(_stream_play)
                     if tts_ok:
                         def _generate() -> tuple[str | None, float]:
                             _t0 = time.monotonic()
@@ -873,6 +941,12 @@ class InteractionLoop:
                 state_manager.set_state(AppState.SPEAKING)
                 for _text, future in pending:
                     try:
+                        if streaming:
+                            # Worker already streamed+played; just record first-voice.
+                            played, first_ts = future.result(timeout=60)
+                            if played and first_ts and not _t_first_voice:
+                                _t_first_voice = first_ts
+                            continue
                         audio_file, tts_generation_s = future.result(timeout=30)
                         _tts_generation_total += tts_generation_s
                         if audio_file:
@@ -1278,14 +1352,6 @@ class InteractionLoop:
 
                 self._last_tenri_response = response_text
 
-                self.session_logger.log_exchange(
-                    user_input=user_input,
-                    response=response_text,
-                    sources=[c.get("source_id") for c in context_chunks],
-                    slide_title=slide.get("title") if slide else None,
-                    mode="normal",
-                )
-
                 self.memory.add_user_message(user_input)
                 self.memory.add_assistant_message(response_text)
 
@@ -1345,6 +1411,27 @@ class InteractionLoop:
                     audio_playback_s=self._last_audio_playback_seconds,
                 )
 
+                # Catat exchange + metrik latensi per-turn SETELAH step 6 agar
+                # tts/first_voice/playback terisi untuk mode streaming maupun non-streaming.
+                self.session_logger.log_exchange(
+                    user_input=user_input,
+                    response=response_text,
+                    sources=[c.get("source_id") for c in context_chunks],
+                    slide_title=slide.get("title") if slide else None,
+                    mode="normal",
+                    metrics={
+                        "wait": self._last_wait_seconds,
+                        "record": self._last_record_seconds,
+                        "stt": self._last_stt_seconds,
+                        "retrieval": self._last_retrieval_seconds,
+                        "llm_first": self._last_llm_seconds,
+                        "tts_first_voice": self._last_first_voice_seconds,
+                        "tts_gen": self._last_tts_seconds,
+                        "playback": self._last_audio_playback_seconds,
+                        "cycle": _cycle_s,
+                    },
+                )
+
                 state_manager.set_state(AppState.IDLE)
 
             except KeyboardInterrupt:
@@ -1365,6 +1452,9 @@ class InteractionLoop:
     def cleanup(self):
         """Releases hardware resources and performs temp cleanup."""
         self.running = False
+        # Detach from the singleton state manager so re-entering "Jalankan Tenri"
+        # from the menu does not stack duplicate state listeners.
+        state_manager.unregister_listener(self._on_state_change)
         print("\nSedang menghentikan sensor visual dan merilis hardware...")
         self.vision_service.stop()
         self.bg_listener.stop()

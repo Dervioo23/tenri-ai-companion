@@ -48,6 +48,12 @@ class Config:
     ELEVENLABS_STABILITY = _get_float("ELEVENLABS_STABILITY", 0.5)
     ELEVENLABS_SIMILARITY_BOOST = _get_float("ELEVENLABS_SIMILARITY_BOOST", 0.65)
     ELEVENLABS_USE_SPEAKER_BOOST = os.getenv("ELEVENLABS_USE_SPEAKER_BOOST", "false").strip().lower() == "true"
+    # TAHAP 2 — WebSocket streaming TTS: putar PCM begitu chunk pertama tiba, bukan
+    # menunggu file MP3 utuh. Butuh `websockets`. Fallback otomatis ke REST/edge-tts
+    # bila gagal. Default false agar tak mengubah perilaku.
+    ELEVENLABS_STREAMING = os.getenv("ELEVENLABS_STREAMING", "false").strip().lower() == "true"
+    # PCM tanpa biaya decode MP3. Format: pcm_16000 / pcm_22050 / pcm_24000 / pcm_44100.
+    ELEVENLABS_STREAM_OUTPUT_FORMAT = os.getenv("ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_22050").strip()
     ELEVENLABS_CONNECT_TIMEOUT = _get_float("ELEVENLABS_CONNECT_TIMEOUT", 4.0)
     ELEVENLABS_READ_TIMEOUT = _get_float("ELEVENLABS_READ_TIMEOUT", 12.0)
     ELEVENLABS_CIRCUIT_BREAKER_SECONDS = _get_float("ELEVENLABS_CIRCUIT_BREAKER_SECONDS", 60.0)
@@ -129,7 +135,28 @@ class Config:
     SPEECH_STT_AUDIO_HARD_LIMIT = _get_float("SPEECH_STT_AUDIO_HARD_LIMIT", _SAFE_STT_AUDIO_HARD_LIMIT)
     SPEECH_AMBIENT_NOISE_DURATION = _get_float("SPEECH_AMBIENT_NOISE_DURATION", 0.8)
     AUDIO_PLAYBACK_TIMEOUT = _get_float("AUDIO_PLAYBACK_TIMEOUT", 60.0)
-    
+
+    # Silero VAD (TAHAP 1) — neural endpointing menggantikan gerbang energi.
+    # True = pakai VadListener (capture PyAudio + Silero ONNX). Butuh onnxruntime
+    # dan model di SILERO_VAD_MODEL_PATH. Jika gagal, otomatis fallback ke
+    # BackgroundListener berbasis energi. Default false agar tak mengubah perilaku.
+    SILERO_VAD_ENABLED = os.getenv("SILERO_VAD_ENABLED", "false").strip().lower() == "true"
+    # Probabilitas suara untuk membuka (start) dan menutup (end) ucapan — histeresis.
+    SILERO_VAD_START_PROB = _get_float("SILERO_VAD_START_PROB", 0.5)
+    SILERO_VAD_END_PROB = _get_float("SILERO_VAD_END_PROB", 0.35)
+    # Hening berturut sebelum ucapan dianggap selesai (pengganti pause_threshold 1.1s).
+    SILERO_VAD_HANGOVER_MS = _get_int("SILERO_VAD_HANGOVER_MS", 500)
+    # Ucapan lebih pendek dari ini dibuang sebagai blip/noise.
+    SILERO_VAD_MIN_SPEECH_MS = _get_int("SILERO_VAD_MIN_SPEECH_MS", 250)
+    # Audio sebelum onset yang ikut disertakan agar awal kata tak terpotong.
+    SILERO_VAD_PREROLL_MS = _get_int("SILERO_VAD_PREROLL_MS", 200)
+    # Waktu maksimum menunggu frame pertama. Jika stream terbuka tetapi tidak
+    # mengirim audio, listener dianggap gagal dan kembali ke BackgroundListener.
+    SILERO_VAD_STARTUP_TIMEOUT = _get_float("SILERO_VAD_STARTUP_TIMEOUT", 1.5)
+    # Diagnostik: cetak heartbeat (~3s) berisi max prob & amplitudo mic ke log.
+    # Aktifkan sementara untuk memastikan VAD menerima audio & menyeberang ambang.
+    SILERO_VAD_DEBUG = os.getenv("SILERO_VAD_DEBUG", "false").strip().lower() == "true"
+
     # Paths
     PROMPTS_DIR = BASE_DIR / "app" / "prompts"
     DATA_DIR = BASE_DIR / "app" / "data"
@@ -141,6 +168,8 @@ class Config:
     TEMP_DIR = AUDIO_DIR / "temp"
     TTS_CACHE_DIR = AUDIO_DIR / "tts_cache"
     SNAPSHOTS_DIR = ASSETS_DIR / "images" / "camera_snapshots"
+    MODELS_DIR = ASSETS_DIR / "models"
+    SILERO_VAD_MODEL_PATH = MODELS_DIR / "silero_vad.onnx"
 
     @classmethod
     def tts_language_code(cls) -> str | None:
