@@ -40,6 +40,18 @@ class StateManager:
         if callback not in self._listeners:
             self._listeners.append(callback)
 
+    def unregister_listener(self, callback):
+        """Remove a previously registered callback. Safe to call if absent.
+
+        Needed because state_manager is a process-wide singleton: each
+        InteractionLoop registers a listener, so re-entering "Jalankan Tenri"
+        from the menu without removing the old one duplicates state output.
+        """
+        try:
+            self._listeners.remove(callback)
+        except ValueError:
+            pass
+
     def get_last_error(self) -> str:
         return self._last_error
 

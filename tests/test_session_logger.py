@@ -116,3 +116,24 @@ class TestLogExchange:
         record = json.loads(sl.path.read_text(encoding="utf-8"))
         assert "Sawerigading" in record["user"]
         assert "Sawerigading" in record["tenri"]
+
+
+class TestLogExchangeMetrics:
+    def test_metrics_written_when_provided(self, tmp_path):
+        sl = make_logger(tmp_path)
+        metrics = {"stt": 0.9, "retrieval": 0.1, "tts_first_voice": 1.2}
+        sl.log_exchange("tes", "tes", metrics=metrics)
+        record = json.loads(sl.path.read_text(encoding="utf-8"))
+        assert record["metrics"] == metrics
+
+    def test_metrics_absent_when_not_provided(self, tmp_path):
+        sl = make_logger(tmp_path)
+        sl.log_exchange("tes", "tes")
+        record = json.loads(sl.path.read_text(encoding="utf-8"))
+        assert "metrics" not in record
+
+    def test_empty_metrics_not_written(self, tmp_path):
+        sl = make_logger(tmp_path)
+        sl.log_exchange("tes", "tes", metrics={})
+        record = json.loads(sl.path.read_text(encoding="utf-8"))
+        assert "metrics" not in record

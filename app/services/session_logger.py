@@ -28,6 +28,7 @@ class SessionLogger:
         sources: list[str] | None = None,
         slide_title: str | None = None,
         mode: str = "normal",
+        metrics: dict | None = None,
     ) -> None:
         record = {
             "timestamp": datetime.now().isoformat(),
@@ -37,6 +38,11 @@ class SessionLogger:
             "sources": sources or [],
             "slide": slide_title,
         }
+        # Per-turn latency metrics (wait/record/stt/retrieval/llm/tts/playback) for
+        # offline analysis via scripts/report_latency.py. Only attached to full
+        # response turns; ambient/interruption turns omit it.
+        if metrics:
+            record["metrics"] = metrics
         try:
             with open(self._path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")

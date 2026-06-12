@@ -3,3 +3,10 @@ google-genai>=1.0.0
 
 # Fallback TTS online opsional.
 edge-tts>=6.1.0
+
+# Silero VAD (neural endpointing, TAHAP 1). Instal hanya jika SILERO_VAD_ENABLED=true.
+# Model silero_vad.onnx (~2 MB) disimpan di assets/models/.
+onnxruntime>=1.17
+
+# WebSocket streaming TTS (TAHAP 2). Instal hanya jika ELEVENLABS_STREAMING=true.
+websockets>=12.0
