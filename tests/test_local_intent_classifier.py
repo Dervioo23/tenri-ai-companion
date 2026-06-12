@@ -246,7 +246,10 @@ def test_wake_word_still_overrides_stage_transition(intent_classifier_with_local
     assert result.was_wake_word is True
 
 
-def test_conversation_window_ambiguous_input_stays_ambient(intent_classifier_with_local):
+def test_conversation_window_statement_now_engages(intent_classifier_with_local):
+    # Hybrid model: inside an open conversation a plain statement (no narration
+    # opener, not a monologue) is treated as addressed to Tenri and answered,
+    # not silenced as before.
     result = intent_classifier_with_local.classify(
         "data ini cukup jelas sebenarnya",
         wake_words=["tenri"],
@@ -256,9 +259,8 @@ def test_conversation_window_ambiguous_input_stays_ambient(intent_classifier_wit
         quiet_mode=False,
     )
 
-    assert result.intent == Intent.AMBIENT
-    assert "Conversation ambient" in result.reason
-    assert "no question/clarification/reference signal" in result.reason
+    assert result.intent == Intent.ASKING_TENRI
+    assert "Conversation engagement" in result.reason
 
 
 @pytest.mark.parametrize(
@@ -318,7 +320,9 @@ def test_conversation_followup_reason_mentions_reference_signal(intent_classifie
     assert "reference follow-up" in result.reason
 
 
-def test_conversation_explaining_reason_is_explicit(intent_classifier_with_local):
+def test_conversation_narration_opener_stays_silent(intent_classifier_with_local):
+    # Even mid-conversation, an explain opener ("jadi ...") marks audience
+    # narration, so Tenri stays silent instead of interrupting the presentation.
     result = intent_classifier_with_local.classify(
         "jadi proses digitalisasi ini memerlukan waktu yang lama",
         wake_words=["tenri"],
@@ -329,7 +333,7 @@ def test_conversation_explaining_reason_is_explicit(intent_classifier_with_local
     )
 
     assert result.intent == Intent.EXPLAINING
-    assert result.reason.startswith("Conversation explanation-like utterance:")
+    assert result.reason.startswith("Conversation narration opener")
 
 
 def test_clarification_question_outside_conversation_is_still_answered(intent_classifier_with_local):

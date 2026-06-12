@@ -207,6 +207,34 @@ def test_strip_echo_discards_short_tenri_echo_only() -> None:
     assert result == ""
 
 
+def test_strip_echo_keeps_question_quoting_tenri_with_wake() -> None:
+    # Regression: a real follow-up that quotes Tenri's terms AND names her was
+    # being discarded whole as echo (overlap 67%), eating the question.
+    loop = InteractionLoop.__new__(InteractionLoop)
+    loop._last_tenri_response = (
+        "Tiga pendekatan utama adalah Supervised Learning, "
+        "Unsupervised Learning, dan Reinforcement Learning."
+    )
+    result = loop._strip_echo("Apa itu Supervised Learning Tenri?")
+    assert result == "Apa itu Supervised Learning Tenri?"
+
+
+def test_strip_echo_keeps_overlapping_question_without_wake() -> None:
+    # A question signal alone is enough — Tenri's answers are declarative.
+    loop = InteractionLoop.__new__(InteractionLoop)
+    loop._last_tenri_response = "Supervised Learning adalah pembelajaran dengan data berlabel."
+    result = loop._strip_echo("Apa itu supervised learning?")
+    assert result == "Apa itu supervised learning?"
+
+
+def test_strip_echo_still_discards_declarative_echo() -> None:
+    # No wake word, no question signal -> genuine mic bleed is still discarded.
+    loop = InteractionLoop.__new__(InteractionLoop)
+    loop._last_tenri_response = "Supervised Learning adalah pembelajaran dengan data berlabel."
+    result = loop._strip_echo("Supervised learning adalah pembelajaran dengan data berlabel")
+    assert result == ""
+
+
 def test_do_interruption_marks_prompt_as_no_context() -> None:
     loop = InteractionLoop.__new__(InteractionLoop)
     loop.policy = MagicMock()
@@ -584,6 +612,36 @@ def test_stream_and_speak_respects_character_budget() -> None:
 
     assert len(result) <= 90
     assert result.endswith(".")
+
+
+def test_stream_and_speak_detail_token_override() -> None:
+    """A detail request lifts the live 80-token muzzle to the requested budget."""
+    loop = InteractionLoop.__new__(InteractionLoop)
+    llm = MagicMock()
+    llm.client = True
+    llm.stream_response_chunks.return_value = iter(["Penjelasan panjang."])
+    loop._llm = MagicMock(return_value=llm)
+    loop.elevenlabs_service = MagicMock()
+    loop.elevenlabs_service.client = None
+    loop.local_tts_service = MagicMock()
+    loop.local_tts_service.available = False
+    loop.bg_listener = MagicMock()
+
+    with (
+        patch("app.core.interaction_loop.Config.VOICE_OUTPUT_ENABLED", False),
+        patch("app.core.interaction_loop.Config.LIVE_RESPONSE_MODE", True),
+        patch("app.core.interaction_loop.state_manager.set_state"),
+        patch("app.core.interaction_loop.time.sleep"),
+    ):
+        loop._stream_and_speak(
+            [{"role": "user", "content": "prompt"}],
+            max_sentences=4,
+            max_tokens=240,
+        )
+
+    # Live mode would normally cap at 80; the explicit override must win.
+    _, kwargs = llm.stream_response_chunks.call_args
+    assert kwargs["max_tokens"] == 240
 
 
 def test_stream_and_speak_uses_streaming_tts_when_available() -> None:

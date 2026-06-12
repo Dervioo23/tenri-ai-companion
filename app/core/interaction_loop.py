@@ -84,6 +84,10 @@ _CLOSING_PHRASES: frozenset[str] = frozenset({
     "mantap terima kasih", "oke mantap", "sip terima kasih",
     "sama sama", "sama-sama", "iya sama sama", "ya sama sama",
     "oke sama sama", "baik sama sama",
+    # Penutup khas lain (multi-kata agar tak salah-tutup sebagai akhiran kalimat).
+    "sekian", "sekian dulu", "segitu dulu", "segini dulu",
+    "udahan", "ya udah", "udah deh", "ya udah deh", "oke deh",
+    "cukup sekian", "sudah selesai", "selesai sudah",
 })
 
 # Frasa pendek yang hanya berupa acknowledgment — tidak perlu respons LLM.
@@ -446,6 +450,18 @@ class InteractionLoop:
         if not self._last_tenri_response or not user_input:
             return user_input
 
+        # A genuine follow-up that quotes Tenri's words ("Apa itu Supervised
+        # Learning, Tenri?") overlaps heavily with her last answer and was being
+        # wrongly discarded whole as echo — eating the presenter's real question.
+        # Tenri's own TTS is declarative and never addresses herself by name, so
+        # an input carrying a wake word or a question signal is the presenter
+        # speaking, never mic bleed. We still allow prefix-stripping (it preserves
+        # the real speech), but never discard such an input entirely.
+        _lower = user_input.lower()
+        _user_intent_signal = _has_question_word(user_input) or any(
+            re.search(rf"\b{re.escape(w)}\b", _lower) for w in Config.WAKE_WORDS
+        )
+
         from app.services.answer_verifier import _cosine_similarity, _tokenize
 
         raw_input_tokens = self._echo_tokens(user_input)
@@ -459,7 +475,7 @@ class InteractionLoop:
                 raw_overlap = sum(
                     1 for a, b in zip(raw_input_tokens, raw_response_tokens) if a == b
                 ) / R_raw
-                if raw_overlap >= 0.75:
+                if raw_overlap >= 0.75 and not _user_intent_signal:
                     logger.warning("Short self-echo discarded: '%s...'", user_input[:50])
                     return ""
 
@@ -486,7 +502,11 @@ class InteractionLoop:
         sim = _cosine_similarity(input_tokens, response_tokens)
         overlap_ratio = sum(1 for t in input_tokens if t in response_token_set) / len(input_tokens)
 
-        if sim >= self._ECHO_SIM_THRESHOLD and overlap_ratio >= self._ECHO_OVERLAP_MIN:
+        if (
+            sim >= self._ECHO_SIM_THRESHOLD
+            and overlap_ratio >= self._ECHO_OVERLAP_MIN
+            and not _user_intent_signal
+        ):
             logger.warning(
                 "Self-echo discarded (sim=%.2f, overlap=%.0f%%): '%s...'",
                 sim, overlap_ratio * 100, user_input[:50],
@@ -846,6 +866,7 @@ class InteractionLoop:
         max_sentences: int = 2,
         max_chars: int = 0,
         context_str: str = "",
+        max_tokens: int = 0,
     ) -> str:
         """Sentence-level streaming pipeline.
 
@@ -877,7 +898,11 @@ class InteractionLoop:
             _t_first_sentence: float = 0.0
             _t_first_voice: float = 0.0
 
-            _live_max_tokens = 80 if Config.LIVE_RESPONSE_MODE else Config.LLM_MAX_TOKENS
+            # An explicit caller budget (detail requests) overrides the live muzzle.
+            if max_tokens > 0:
+                _live_max_tokens = max_tokens
+            else:
+                _live_max_tokens = 80 if Config.LIVE_RESPONSE_MODE else Config.LLM_MAX_TOKENS
             stream = llm.stream_response_chunks(messages, max_tokens=_live_max_tokens)
 
             buffer = ""
@@ -1369,7 +1394,17 @@ class InteractionLoop:
                 self._last_tts_seconds = 0.0
                 self._last_audio_playback_seconds = 0.0
 
+                # Depth-on-demand: a direct "lebih detail/lengkap" lifts the live
+                # 1-sentence + 80-token muzzle so Tenri elaborates instead of
+                # restating one canned line. Normal turns stay fast and terse.
+                _wants_detail = self._input_requests_detail(user_input)
                 _max_sent = 1 if Config.LIVE_RESPONSE_MODE else Config.RESPONSE_MAX_SENTENCES
+                _detail_tokens = 0
+                if _wants_detail:
+                    _max_sent = max(_max_sent, Config.DETAIL_RESPONSE_MAX_SENTENCES)
+                    _detail_tokens = Config.DETAIL_RESPONSE_MAX_TOKENS
+                    logger.info("Detail request — lifting response to %d sentences / %d tokens.",
+                                _max_sent, _detail_tokens)
                 _max_chars = self._live_char_budget(user_input)
                 llm_started_at = time.monotonic()
                 if Config.GROQ_STREAMING:
@@ -1379,6 +1414,7 @@ class InteractionLoop:
                             max_sentences=_max_sent,
                             max_chars=_max_chars,
                             context_str=context_str,
+                            max_tokens=_detail_tokens,
                         )
                     logger.info(f"Latency stream_pipeline: {time.monotonic() - llm_started_at:.2f}s")
                 else:

@@ -80,6 +80,73 @@ def test_common_words_do_not_create_false_grounding(verifier):
     assert result == _FALLBACK_RESPONSE
 
 
+# ------------------------------------------------------------------ coverage relaxation (regression)
+
+
+# Reproduces the live failure: "jelaskan slide pertama ini" produced a valid,
+# on-topic one-sentence answer, but BOW cosine (0.179) fell just below the
+# threshold relaxation floor and Tenri refused her own slide. Coverage relaxation
+# must let short on-topic answers through.
+
+@pytest.fixture
+def context_pengenalan_ai():
+    return (
+        "[1] Pengenalan Teknologi — Mengenal Kecerdasan Buatan\n"
+        "Kecerdasan buatan adalah cabang ilmu komputer yang membuat mesin mampu "
+        "meniru kemampuan berpikir manusia. Sistem kecerdasan buatan belajar dari "
+        "data, mengenali pola, dan mengambil keputusan untuk membantu pekerjaan "
+        "manusia sehari-hari."
+    )
+
+
+def test_short_on_topic_slide_explanation_passes(context_pengenalan_ai):
+    # Production threshold (default 0.25). The exact kind of one-sentence answer
+    # "jelaskan slide ini" produces — must not be refused.
+    verifier = AnswerVerifier()
+    response = "Kecerdasan buatan memang sesuatu yang kompleks, tapi intinya mesin meniru manusia."
+    result, overridden = verifier.check(response, context_pengenalan_ai)
+    assert not overridden, "short on-topic slide explanation must not be refused"
+    assert result == response
+
+
+def test_coverage_relaxation_rescues_low_cosine_on_topic():
+    # Isolates the coverage path: a large, diverse context drags cosine down by
+    # length asymmetry while a short on-topic answer keeps high coverage. With
+    # threshold 0.5 the cosine floor (0.375) sits comfortably above the answer's
+    # cosine (~0.31), so pre-fix this was refused; coverage (>=0.2 with 2 shared
+    # terms) now rescues it. Not boundary-brittle — both margins are wide.
+    context = (
+        "[1] Pengenalan Teknologi — Mengenal Kecerdasan Buatan\n"
+        "Kecerdasan buatan mencakup pembelajaran mesin, jaringan saraf tiruan, "
+        "pemrosesan bahasa alami, penglihatan komputer, robotika, sistem pakar, "
+        "penalaran logika, optimasi, statistik, serta etika teknologi dan dampak "
+        "sosial bagi masyarakat luas di berbagai sektor industri."
+    )
+    strict = AnswerVerifier(threshold=0.5)
+    response = "Kecerdasan buatan sungguh menakjubkan."
+    result, overridden = strict.check(response, context)
+    assert not overridden
+    assert result == response
+
+
+def test_off_topic_with_few_shared_terms_still_overridden(context_pengenalan_ai):
+    # Mentions one domain word but is otherwise unrelated — <2 shared terms,
+    # coverage relaxation must NOT rescue it.
+    verifier = AnswerVerifier()
+    response = "Komputer gaming terbaik memakai kartu grafis mahal untuk bermain."
+    result, overridden = verifier.check(response, context_pengenalan_ai)
+    assert overridden
+    assert result == _FALLBACK_RESPONSE
+
+
+def test_coverage_relaxation_requires_two_shared_terms(context_pengenalan_ai):
+    # A single shared term with high coverage is not enough to be grounded.
+    verifier = AnswerVerifier()
+    response = "Komputer rusak."  # 'komputer' shared, 'rusak' not → 1 shared term
+    _, overridden = verifier.check(response, context_pengenalan_ai)
+    assert overridden
+
+
 # ------------------------------------------------------------------ skip conditions
 
 

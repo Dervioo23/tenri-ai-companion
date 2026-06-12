@@ -6,6 +6,15 @@ import numpy as np
 logger = logging.getLogger("AICompanion.AnswerVerifier")
 
 _GROUNDING_THRESHOLD = 0.25
+# Coverage relaxation: a short, on-topic answer (e.g. a one-sentence "jelaskan
+# slide ini") scores low BOW cosine purely because of length asymmetry against a
+# large context blob, not because it is off-topic. When the answer shares enough
+# key terms AND this fraction of its own content words is found in context, treat
+# it as grounded even if cosine is below threshold. This stops false refusals
+# without loosening the guard against genuinely off-topic generation (which still
+# fails the >=2 shared-terms requirement). It catches topical drift, not factual
+# errors — BOW overlap can never verify the latter.
+_COVERAGE_RELAX_MIN = 0.2
 _FALLBACK_RESPONSE = "Tenri tidak punya informasi spesifik untuk ini."
 _PUNCT_RE = re.compile(r"[^\w\s]")
 _MIN_TOKEN_LENGTH = 2
@@ -108,13 +117,18 @@ class AnswerVerifier:
             return response_text, False
 
         similarity = _cosine_similarity(resp_tokens, ctx_tokens)
-        shared_terms = set(resp_tokens) & set(ctx_tokens)
-        logger.debug("Grounding similarity: %.3f (threshold: %.1f)", similarity, self.threshold)
+        resp_set = set(resp_tokens)
+        shared_terms = resp_set & set(ctx_tokens)
+        coverage = len(shared_terms) / len(resp_set) if resp_set else 0.0
+        logger.debug(
+            "Grounding similarity: %.3f coverage: %.3f (threshold: %.1f)",
+            similarity, coverage, self.threshold,
+        )
 
         near_grounded = (
             self.threshold <= 0.5
             and len(shared_terms) >= 2
-            and similarity >= self.threshold * 0.75
+            and (similarity >= self.threshold * 0.75 or coverage >= _COVERAGE_RELAX_MIN)
         )
 
         if similarity < self.threshold and not near_grounded:

@@ -100,6 +100,72 @@ class TestSileroVADModel:
         assert 0.0 <= vad.probability(silence) <= 1.0
 
 
+class TestSileroRealSpeechCorpus:
+    """End-to-end regression on a committed real-speech WAV. The unit tests above
+    lock the input *shape*; this locks the *behaviour*: the real model fed real
+    speech must cross start_prob and the endpointer must emit an utterance. It
+    would catch a model-file swap or normalization regression that a shape check
+    misses — the original silent-VAD bug returned ~0.0 here."""
+
+    def _load_fixture_frames(self):
+        import wave
+        from pathlib import Path
+        from app.pipeline.audio_corpus import AudioRegressionCorpus
+        from app.services.silero_vad import FRAME_SAMPLES
+
+        corpus = AudioRegressionCorpus(Path(__file__).parent / "audio_corpus")
+        fixtures = {f.fixture_id: f for f in corpus.load()}
+        if "silero-context-speech" not in fixtures:
+            pytest.skip("silero-context-speech fixture not present")
+        fx = fixtures["silero-context-speech"]
+        with wave.open(str(fx.audio_path), "rb") as wav:
+            assert wav.getframerate() == 16000 and wav.getnchannels() == 1
+            pcm = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
+        return [pcm[i:i + FRAME_SAMPLES]
+                for i in range(0, pcm.size - FRAME_SAMPLES, FRAME_SAMPLES)]
+
+    def _vad(self):
+        pytest.importorskip("onnxruntime")
+        from app.config import Config
+        if not Config.SILERO_VAD_MODEL_PATH.exists():
+            pytest.skip("silero_vad.onnx not present")
+        from app.services.silero_vad import SileroVAD
+        return SileroVAD(Config.SILERO_VAD_MODEL_PATH)
+
+    def test_real_speech_crosses_start_prob(self):
+        vad = self._vad()
+        frames = self._load_fixture_frames()
+        probs = np.array([vad.probability(f) for f in frames])
+        # Pre-fix this was max ~0.17, never crossing 0.5. Real speech must fire.
+        assert probs.max() >= 0.5
+        assert (probs >= 0.5).sum() >= 5
+
+    def test_real_speech_emits_utterance(self):
+        from app.config import Config
+        from app.services.silero_vad import SpeechEndpointer, FRAME_SAMPLES, FRAME_MS
+
+        vad = self._vad()
+        frames = self._load_fixture_frames()
+        ep = SpeechEndpointer(
+            start_prob=Config.SILERO_VAD_START_PROB,
+            end_prob=Config.SILERO_VAD_END_PROB,
+            hangover_ms=Config.SILERO_VAD_HANGOVER_MS,
+            min_speech_ms=Config.SILERO_VAD_MIN_SPEECH_MS,
+            preroll_ms=Config.SILERO_VAD_PREROLL_MS,
+            max_speech_ms=int(Config.SPEECH_PHRASE_TIME_LIMIT * 1000),
+            frame_ms=FRAME_MS,
+        )
+        # Append trailing silence so the hangover closes the utterance.
+        stream = frames + [np.zeros(FRAME_SAMPLES, dtype=np.int16)] * 40
+        emitted = None
+        for f in stream:
+            out = ep.push(vad.probability(f), f)
+            if out is not None:
+                emitted = out
+                break
+        assert emitted is not None and len(emitted) > 0
+
+
 class TestSileroContextWindow:
     """Regression: Silero v5 needs 64 samples of carried-over context prepended
     to each 512-sample frame (576 total). Without it the model returns ~0.0 for

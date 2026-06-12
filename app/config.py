@@ -118,6 +118,11 @@ class Config:
     LLM_MAX_TOKENS = _get_int("LLM_MAX_TOKENS", 200)
     RESPONSE_MAX_SENTENCES = _get_int("RESPONSE_MAX_SENTENCES", 4)
     LIVE_RESPONSE_MAX_CHARS = _get_int("LIVE_RESPONSE_MAX_CHARS", 260)
+    # Depth-on-demand: when the presenter explicitly asks for more ("lebih detail",
+    # "lebih lengkap"), let the answer escape LIVE_RESPONSE_MODE's 1-sentence /
+    # 80-token muzzle so Tenri actually elaborates instead of restating one line.
+    DETAIL_RESPONSE_MAX_SENTENCES = _get_int("DETAIL_RESPONSE_MAX_SENTENCES", 4)
+    DETAIL_RESPONSE_MAX_TOKENS = _get_int("DETAIL_RESPONSE_MAX_TOKENS", 240)
     # Privacy-safe stage trace for the event-driven runtime. It records event
     # names, durations, counts, and statuses, never transcript/response text.
     PIPELINE_TRACE_ENABLED = os.getenv("PIPELINE_TRACE_ENABLED", "true").strip().lower() == "true"

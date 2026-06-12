@@ -321,7 +321,9 @@ class IntentClassifier:
             norm_tokens & _PRESENTATION_TARGET_WORDS
         )
 
-    def _is_explaining(self, text: str, lower: str, word_count: int) -> IntentResult | None:
+    def _is_explaining(
+        self, text: str, lower: str, word_count: int, use_local: bool = True
+    ) -> IntentResult | None:
         if self._has_question_signal(text) or self._has_clarification_pattern(text):
             return None
 
@@ -337,7 +339,10 @@ class IntentClassifier:
                 f"Long non-question utterance ({word_count} words)"
             )
 
-        if self._local is not None:
+        # The BOW local classifier is noisy and tends to label short opinions as
+        # "explaining". Callers inside an open conversation skip it (use_local=
+        # False) so debate/statements addressed to Tenri are not silenced.
+        if use_local and self._local is not None:
             local_label, local_conf = self._local.predict(text)
             if local_label == "explaining" and local_conf >= self._local.min_confidence:
                 return IntentResult(
@@ -450,17 +455,31 @@ class IntentClassifier:
                     Intent.ASKING_TENRI, text,
                     f"Conversation follow-up signal: {followup_reason}"
                 )
-            # In conversation mode, short ambiguous presenter-like fragments
-            # should stay quiet. Longer explanation-like utterances can still be
-            # routed below, but local classifier must not override follow-ups.
-            explaining = self._is_explaining(text, lower, word_count)
-            if explaining:
-                explaining.reason = f"Conversation explanation-like utterance: {explaining.reason}"
-                return explaining
+            # Hybrid addressee model: once the presenter opens a conversation (by
+            # name), Tenri engages with whatever follows — questions AND
+            # statements/debate — rather than staying silent. Only speech that
+            # clearly reads as audience narration is left alone: an explicit
+            # explain opener ("jadi ...", "nah ...", "pada dasarnya ...") or a long
+            # monologue. The noisy BOW local classifier is skipped here so a short
+            # opinion like "menurut saya AI berbahaya" is not mislabeled as
+            # narration. Audience markers, invites, stage transitions, closing, and
+            # noise were already filtered earlier, so the rest is treated as hers.
+            opener = next(
+                (o for o in _EXPLAIN_OPENERS if lower == o or lower.startswith(o + " ")),
+                None,
+            )
+            if opener:
+                return IntentResult(
+                    Intent.EXPLAINING, text,
+                    f"Conversation narration opener '{opener}' ({word_count} words)"
+                )
+            narration = self._is_explaining(text, lower, word_count, use_local=False)
+            if narration:
+                narration.reason = f"Conversation narration (stay silent): {narration.reason}"
+                return narration
             return IntentResult(
-                Intent.AMBIENT, text,
-                "Conversation ambient: no question/clarification/reference "
-                f"signal ({word_count} words)"
+                Intent.ASKING_TENRI, text,
+                f"Conversation engagement: addressed to Tenri ({word_count} words)"
             )
 
         explaining = self._is_explaining(text, lower, word_count)

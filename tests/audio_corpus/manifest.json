@@ -1,4 +1,14 @@
 {
   "version": 1,
-  "fixtures": []
+  "fixtures": [
+    {
+      "id": "silero-context-speech",
+      "audio": "audio/silero-context-speech.wav",
+      "expected_transcript": "Halo Tenri, apa itu kecerdasan buatan?",
+      "expected_intent": "asking_tenri",
+      "sha256": "1f761c6cb615d5fa7aa2aa1d10a1e8f18302fbfeb8a828f0c32425f83563bfa7",
+      "duration_seconds": 4.344,
+      "notes": "Real speech. Regresi bug VAD-budek: Silero v5 butuh 64-sample context, tanpa itu prob ~0 untuk semua frame. Fixture ini WAJIB memicu endpointer."
+    }
+  ]
 }
