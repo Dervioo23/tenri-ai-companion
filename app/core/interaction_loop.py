@@ -3,8 +3,8 @@ import random
 import re
 import threading
 import time
-import sys
 import logging
+import uuid
 from app.state import state_manager, AppState
 from app.config import Config
 from app.core.prompt_builder import PromptBuilder
@@ -33,6 +33,10 @@ from app.services.local_tts_service import LocalTTSService
 from app.services.streaming_tts import StreamingTTS
 from app.services.query_rewriter import QueryRewriter
 from app.services.answer_verifier import AnswerVerifier
+from app.pipeline.capture_stage import CaptureStage, CaptureStatus
+from app.pipeline.event_bus import PipelineEventBus
+from app.pipeline.events import PipelineEvent, PipelineEventType
+from app.pipeline.trace import PipelineTraceWriter
 
 logger = logging.getLogger("AICompanion.InteractionLoop")
 
@@ -210,6 +214,9 @@ class InteractionLoop:
 
         # Session log (one JSONL file per run)
         self.session_logger = SessionLogger()
+        self.pipeline_bus = PipelineEventBus()
+        self.pipeline_trace = PipelineTraceWriter()
+        self.pipeline_bus.subscribe(None, self.pipeline_trace.handle)
 
         # Intent classifier — routing presenter utterances ke 5 kategori
         self.intent_classifier = IntentClassifier()
@@ -231,6 +238,7 @@ class InteractionLoop:
         # Background listener — continuous capture + mute gate saat TTS.
         # Prefer Silero VAD endpointing when enabled & usable; else energy-gated.
         self.bg_listener = self._build_listener()
+        self.capture_stage = CaptureStage(self.speech_service, self.bg_listener)
         if Config.VAD_ENABLED and not Config.PUSH_TO_TALK_ENABLED and Config.VOICE_INPUT_ENABLED:
             self._start_background_listener()
 
@@ -306,11 +314,78 @@ class InteractionLoop:
         )
         self.bg_listener.stop()
         self.bg_listener = BackgroundListener(self.speech_service)
+        capture_stage = getattr(self, "capture_stage", None)
+        if capture_stage is not None:
+            capture_stage.listener = self.bg_listener
         return self.bg_listener.start()
 
     def _llm(self):
         """Return active LLM service; fallback keeps older tests and scripts working."""
         return getattr(self, "llm_service", self.groq_service)
+
+    def _emit_pipeline_event(
+        self,
+        event_type: PipelineEventType,
+        turn_id: str = "",
+        **payload,
+    ) -> None:
+        """Publish stage metadata without exposing transcript or response text."""
+        bus = getattr(self, "pipeline_bus", None)
+        if bus is not None:
+            bus.publish(PipelineEvent(event_type, turn_id=turn_id, payload=payload))
+
+    def _capture_turn(self, turn_id: str) -> str | None:
+        """Capture one input through CaptureStage and copy its timing metrics."""
+        voice_capture = Config.VOICE_INPUT_ENABLED and self.speech_service.microphone_available
+        if voice_capture:
+            state_manager.set_state(AppState.LISTENING)
+        else:
+            print("\n[Offline Mic] Ketik pesan Anda di bawah:")
+
+        def _wait_for_push() -> None:
+            input("\n[Tekan ENTER untuk mulai merekam suara...]")
+
+        self._emit_pipeline_event(
+            PipelineEventType.CAPTURE_STARTED,
+            turn_id,
+            mode=("push_to_talk" if Config.PUSH_TO_TALK_ENABLED else "auto"),
+            voice=voice_capture,
+        )
+        result = self.capture_stage.capture(
+            voice_enabled=Config.VOICE_INPUT_ENABLED,
+            push_to_talk=Config.PUSH_TO_TALK_ENABLED,
+            timeout=Config.SPEECH_TIMEOUT,
+            before_push_capture=_wait_for_push,
+        )
+        self._last_wait_seconds = result.wait_seconds
+        self._last_record_seconds = result.record_seconds
+        self._last_stt_seconds = result.stt_seconds
+        self._emit_pipeline_event(
+            PipelineEventType.UTTERANCE_CAPTURED,
+            turn_id,
+            source=result.source,
+            status=result.status.value,
+            chars=len(result.text),
+            wait_s=result.wait_seconds,
+            record_s=result.record_seconds,
+            stt_s=result.stt_seconds,
+        )
+
+        if result.ok:
+            return result.text
+        self._emit_pipeline_event(
+            PipelineEventType.TURN_SKIPPED,
+            turn_id,
+            reason=f"capture:{result.status.value}",
+        )
+        if result.status is CaptureStatus.TIMEOUT:
+            print("Tidak ada suara terdeteksi. Kembali ke mode siaga.")
+        elif result.status is CaptureStatus.UNKNOWN_AUDIO:
+            print("Suara tidak terdengar jelas. Silakan coba lagi.")
+        elif result.status is CaptureStatus.ERROR and result.detail:
+            print(f"Error perekaman: {result.detail}")
+        state_manager.set_state(AppState.IDLE)
+        return None
 
     def _on_state_change(self, old_state, new_state, error_msg):
         """Callback invoked when state manager changes state."""
@@ -997,6 +1072,13 @@ class InteractionLoop:
         TerminalUI.print_setup_status(self._config_errors, self._config_warnings)
 
         self.running = True
+        self.pipeline_bus.start()
+        self._emit_pipeline_event(
+            PipelineEventType.RUNTIME_STARTED,
+            provider=Config.LLM_PROVIDER,
+            capture_backend=type(self.bg_listener).__name__,
+            streaming=Config.GROQ_STREAMING,
+        )
         logger.info("Main interaction loop started.")
         logger.info(
             f"Mode: Provider={Config.LLM_PROVIDER}, VAD={'ON' if self.bg_listener.available else 'OFF (sequential fallback)'}, "
@@ -1017,6 +1099,7 @@ class InteractionLoop:
                 self.jarvis_ui.update_slide(self.tracker.format_context(slide))
 
         while self.running:
+            turn_id = uuid.uuid4().hex[:12]
             try:
                 # Vision-based interruption check
                 if Config.VISION_ENABLED:
@@ -1033,62 +1116,22 @@ class InteractionLoop:
 
                 # 1. Capture input
                 interaction_cycle_started_at = time.monotonic()
-                user_input = ""
                 self._last_wait_seconds = 0.0
                 self._last_record_seconds = 0.0
                 self._last_stt_seconds = 0.0
                 self._last_retrieval_seconds = 0.0
-
-                if Config.VOICE_INPUT_ENABLED and self.speech_service.microphone_available:
-                    if Config.PUSH_TO_TALK_ENABLED:
-                        # Mode A: Push-to-talk — tekan Enter, lalu bicara
-                        print("\n[Tekan ENTER untuk mulai merekam suara...]", end="")
-                        sys.stdin.readline()
-                        state_manager.set_state(AppState.LISTENING)
-                        user_input, success = self.speech_service.listen_and_transcribe()
-                        self._last_wait_seconds = self.speech_service.last_wait_seconds
-                        self._last_record_seconds = self.speech_service.last_record_seconds
-                        self._last_stt_seconds = self.speech_service.last_transcribe_seconds
-                        if not success:
-                            if user_input == "[TIMEOUT]":
-                                print("Tidak ada suara terdeteksi. Kembali ke mode siaga.")
-                            elif user_input == "[UNKNOWN_AUDIO]":
-                                print("Suara tidak terdengar jelas. Silakan coba lagi.")
-                            else:
-                                print(f"Error perekaman: {user_input}")
-                            state_manager.set_state(AppState.IDLE)
-                            continue
-                    else:
-                        # Mode B: Auto-listen — VAD queue jika tersedia, sequential jika tidak
-                        state_manager.set_state(AppState.LISTENING)
-                        if self.bg_listener.available:
-                            user_input = self.bg_listener.get(timeout=Config.SPEECH_TIMEOUT)
-                            self._last_wait_seconds = self.bg_listener.last_wait_seconds
-                            self._last_record_seconds = self.bg_listener.last_record_seconds
-                            self._last_stt_seconds = self.bg_listener.last_stt_seconds
-                            if user_input is None:
-                                # Timeout — tidak ada suara, kembali menunggu
-                                state_manager.set_state(AppState.IDLE)
-                                continue
-                        else:
-                            user_input, success = self.speech_service.listen_and_transcribe()
-                            self._last_wait_seconds = self.speech_service.last_wait_seconds
-                            self._last_record_seconds = self.speech_service.last_record_seconds
-                            self._last_stt_seconds = self.speech_service.last_transcribe_seconds
-                            if not success:
-                                state_manager.set_state(AppState.IDLE)
-                                time.sleep(0.5)
-                                continue
-                else:
-                    # Mode C: Teks — fallback jika mic tidak tersedia
-                    print("\n[Offline Mic] Ketik pesan Anda di bawah:")
-                    user_input = input(">> ").strip()
-                    if not user_input:
-                        continue
+                user_input = self._capture_turn(turn_id)
+                if user_input is None:
+                    continue
 
                 # Perintah keluar berlaku untuk semua mode input (push-to-talk,
                 # auto-listen, dan teks) — bukan hanya Mode B/C seperti sebelumnya.
                 if self._is_exit_command(user_input):
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="exit_command",
+                    )
                     break
 
                 if not user_input.strip():
@@ -1098,6 +1141,11 @@ class InteractionLoop:
                 # Strip mic echo of Tenri's own last response before any processing
                 user_input = self._strip_echo(user_input)
                 if not user_input.strip():
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="self_echo",
+                    )
                     state_manager.set_state(AppState.IDLE)
                     continue
                 normalized_input = self.speech_service.normalize_transcription(user_input)
@@ -1112,6 +1160,11 @@ class InteractionLoop:
 
                 # 2. Slide command check - handled before intent/wake-word routing.
                 if self._handle_slide_command(user_input):
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="slide_command",
+                    )
                     continue
 
                 # 3. Intent classification — routing ucapan presenter ke 5 kategori
@@ -1125,9 +1178,21 @@ class InteractionLoop:
                     quiet_mode=self._quiet_mode,
                 )
                 logger.info(f"Intent: {intent_result.intent.value} — {intent_result.reason}")
+                self._emit_pipeline_event(
+                    PipelineEventType.INTENT_CLASSIFIED,
+                    turn_id,
+                    intent=intent_result.intent.value,
+                    was_wake_word=intent_result.was_wake_word,
+                    in_conversation=_in_conversation,
+                )
 
                 # 4. Route berdasarkan intent
                 if intent_result.intent == Intent.CLOSING_TENRI:
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="conversation_closed",
+                    )
                     _was_already_quiet = self._quiet_mode
                     self._conversation_until = 0.0
                     self._quiet_mode = True
@@ -1147,11 +1212,21 @@ class InteractionLoop:
                     continue
 
                 if intent_result.intent == Intent.ASKING_AUDIENCE:
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="audience_directed",
+                    )
                     logger.info("Audience-directed speech — Tenri diam.")
                     state_manager.set_state(AppState.IDLE)
                     continue
 
                 if intent_result.intent in (Intent.EXPLAINING, Intent.AMBIENT, Intent.NOISE):
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason=f"intent:{intent_result.intent.value}",
+                    )
                     # EXPLAINING: presenter sedang menjelaskan → pantau trigger, jangan LLM
                     # AMBIENT: tidak ada sinyal jelas → pantau trigger, jangan LLM
                     label = intent_result.intent.value.upper()
@@ -1196,6 +1271,11 @@ class InteractionLoop:
                 # Hanya wake word tanpa query: jangan panggil LLM/retrieval.
                 # Sapaan harus terasa instan; kecerdasan model baru dipakai saat ada pertanyaan.
                 if intent_result.was_wake_word and not user_input.strip():
+                    self._emit_pipeline_event(
+                        PipelineEventType.TURN_SKIPPED,
+                        turn_id,
+                        reason="wake_acknowledgment",
+                    )
                     self._conversation_until = time.monotonic() + Config.CONVERSATION_WINDOW
                     _greeting = random.choice(_WAKE_ACK_RESPONSES)
                     _greeting = self._sanitize_wake_ack_response(_greeting)
@@ -1221,6 +1301,11 @@ class InteractionLoop:
                     _norm_ack = re.sub(r'[^\w\s]', ' ', user_input.lower())
                     _norm_ack = re.sub(r'\s+', ' ', _norm_ack).strip()
                     if _norm_ack in _ACKNOWLEDGMENT_PHRASES:
+                        self._emit_pipeline_event(
+                            PipelineEventType.TURN_SKIPPED,
+                            turn_id,
+                            reason="short_acknowledgment",
+                        )
                         logger.info(f"Acknowledgment dalam conversation window — Tenri diam: '{_norm_ack}'")
                         state_manager.set_state(AppState.IDLE)
                         continue
@@ -1291,6 +1376,13 @@ class InteractionLoop:
                 no_context = not bool(context_chunks)
                 self._last_retrieval_seconds = round(time.monotonic() - retrieval_started_at, 2)
                 logger.info(f"Latency retrieval: {self._last_retrieval_seconds:.2f}s")
+                self._emit_pipeline_event(
+                    PipelineEventType.RETRIEVAL_COMPLETED,
+                    turn_id,
+                    duration_s=self._last_retrieval_seconds,
+                    chunks=len(context_chunks),
+                    strong_match=bool(context_chunks),
+                )
                 if context_chunks:
                     sources_used = list({c.get("source_id") for c in context_chunks})
                     logger.info(f"Sources used: {sources_used}")
@@ -1435,6 +1527,15 @@ class InteractionLoop:
                         "cycle": _cycle_s,
                     },
                 )
+                self._emit_pipeline_event(
+                    PipelineEventType.RESPONSE_COMPLETED,
+                    turn_id,
+                    response_chars=len(response_text),
+                    sources=len(context_chunks),
+                    cycle_s=_cycle_s,
+                    first_voice_s=self._last_first_voice_seconds,
+                    playback_s=self._last_audio_playback_seconds,
+                )
 
                 state_manager.set_state(AppState.IDLE)
 
@@ -1443,6 +1544,11 @@ class InteractionLoop:
                 break
             except Exception as e:
                 logger.error(f"Error in interaction loop iteration: {e}", exc_info=True)
+                self._emit_pipeline_event(
+                    PipelineEventType.TURN_FAILED,
+                    turn_id,
+                    error_type=type(e).__name__,
+                )
                 state_manager.set_state(AppState.ERROR, str(e))
                 time.sleep(2.0)
                 state_manager.set_state(AppState.IDLE)
@@ -1456,6 +1562,7 @@ class InteractionLoop:
     def cleanup(self):
         """Releases hardware resources and performs temp cleanup."""
         self.running = False
+        self._emit_pipeline_event(PipelineEventType.RUNTIME_STOPPING)
         # Detach from the singleton state manager so re-entering "Jalankan Tenri"
         # from the menu does not stack duplicate state listeners.
         state_manager.unregister_listener(self._on_state_change)
@@ -1464,6 +1571,8 @@ class InteractionLoop:
         self.bg_listener.stop()
         self.audio_player.stop()
         self.elevenlabs_service.close()
+        self.pipeline_bus.stop(drain=True)
+        self.pipeline_trace.close()
         
         print("Membersihkan berkas audio sementara...")
         FileManager.cleanup_temp_files()
