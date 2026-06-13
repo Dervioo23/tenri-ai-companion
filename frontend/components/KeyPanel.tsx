@@ -17,16 +17,40 @@ export default function KeyPanel({
   const [elevenlabs, setEleven] = useState(initial.elevenlabs);
   const [voiceId, setVoiceId] = useState(initial.voiceId || DEFAULT_VOICE_ID);
   const [status, setStatus] = useState<"idle" | "testing" | "ok" | "err">("idle");
-  const [msg, setMsg] = useState("");
+  const [groqMsg, setGroqMsg] = useState("");
+  const [elevenMsg, setElevenMsg] = useState("");
+  const [hint, setHint] = useState("");
+
+  async function probe(label: string, fn: () => Promise<void>): Promise<boolean> {
+    try {
+      await fn();
+      return true;
+    } catch (e) {
+      const m = (e as Error).message || String(e);
+      // "Failed to fetch" = the request never completed (network/extension/VPN),
+      // NOT a CORS block — both providers send Access-Control-Allow-Origin: *.
+      const reason = /failed to fetch|networkerror|load failed/i.test(m)
+        ? "tak sampai ke server (jaringan / ekstensi pemblokir / VPN — bukan CORS)"
+        : m;
+      setHint(`${label}: ${reason}`);
+      return false;
+    }
+  }
 
   async function testAndSave() {
     setStatus("testing");
-    setMsg("Menguji koneksi langsung browser → provider (juga menguji CORS)...");
-    try {
-      // These calls go straight to the providers with the user's keys. If the
-      // browser is blocked by CORS, this is where we'd find out (R1 gate).
-      await testGroqKey(groq.trim());
-      await testElevenKey(elevenlabs.trim());
+    setGroqMsg("menguji...");
+    setElevenMsg("menunggu...");
+    setHint("");
+
+    const groqOk = await probe("Groq", () => testGroqKey(groq.trim()));
+    setGroqMsg(groqOk ? "✓ terhubung" : "✗ gagal");
+
+    setElevenMsg("menguji...");
+    const elevenOk = await probe("ElevenLabs", () => testElevenKey(elevenlabs.trim()));
+    setElevenMsg(elevenOk ? "✓ terhubung" : "✗ gagal");
+
+    if (groqOk && elevenOk) {
       const keys: Keys = {
         groq: groq.trim(),
         elevenlabs: elevenlabs.trim(),
@@ -34,15 +58,10 @@ export default function KeyPanel({
       };
       saveKeys(keys);
       setStatus("ok");
-      setMsg("Koneksi berhasil. Key tersimpan di browser ini saja.");
+      setHint("Koneksi berhasil. Key tersimpan di browser ini saja.");
       onSaved(keys);
-    } catch (e) {
+    } else {
       setStatus("err");
-      setMsg(
-        `Gagal: ${(e as Error).message}. ` +
-          "Jika ini error CORS/Network, provider memblokir panggilan langsung dari browser — " +
-          "kita perlu thin-proxy di backend (lihat R1 di rencana).",
-      );
     }
   }
 
@@ -86,8 +105,19 @@ export default function KeyPanel({
         <button onClick={testAndSave} disabled={status === "testing" || !groq || !elevenlabs}>
           {status === "testing" ? "Menguji..." : "Test & Simpan"}
         </button>
-        <span className={status === "err" ? "err" : status === "ok" ? "ok" : "note"}>{msg}</span>
+        {(groqMsg || elevenMsg) && (
+          <span className="note">
+            Groq: <b className={groqMsg.startsWith("✓") ? "ok" : groqMsg.startsWith("✗") ? "err" : ""}>{groqMsg}</b>
+            {"   "}·{"   "}
+            ElevenLabs: <b className={elevenMsg.startsWith("✓") ? "ok" : elevenMsg.startsWith("✗") ? "err" : ""}>{elevenMsg}</b>
+          </span>
+        )}
       </div>
+      {hint && (
+        <p className={status === "err" ? "err" : "ok"} style={{ marginTop: 8 }}>
+          {hint}
+        </p>
+      )}
 
       <p className="note" style={{ marginTop: 12 }}>
         Dapatkan key: <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">Groq</a>{" "}
