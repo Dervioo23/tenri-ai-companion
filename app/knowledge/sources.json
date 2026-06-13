@@ -4,7 +4,7 @@
     "title": "Konsep Tenri AI Companion",
     "type": "project_note",
     "active_version": "v1",
-    "status": "active",
+    "status": "disabled",
     "versions": [
       {
         "version": "v1",
@@ -20,7 +20,7 @@
     "title": "Dunia tursalahjalan.com",
     "type": "project_note",
     "active_version": "v1",
-    "status": "active",
+    "status": "disabled",
     "versions": [
       {
         "version": "v1",
@@ -36,7 +36,7 @@
     "title": "Catatan Arsip dan Ingatan",
     "type": "archive",
     "active_version": "v1",
-    "status": "active",
+    "status": "disabled",
     "versions": [
       {
         "version": "v1",
@@ -52,7 +52,7 @@
     "title": "Outline Demo Presentasi Tenri",
     "type": "presentation",
     "active_version": "v1",
-    "status": "active",
+    "status": "disabled",
     "versions": [
       {
         "version": "v1",
@@ -68,7 +68,7 @@
     "title": "Pengenalan-AI (Dervio)",
     "type": "presentation",
     "active_version": "v1",
-    "status": "active",
+    "status": "disabled",
     "versions": [
       {
         "version": "v1",
@@ -78,5 +78,21 @@
       }
     ],
     "notes": "Diimpor otomatis oleh import_document.py pada 2026-06-04 20:21"
+  },
+  {
+    "id": "pengantar-ilmu-komunikasi",
+    "title": "Pengantar_Ilmu_Komunikasi",
+    "type": "presentation",
+    "active_version": "v1",
+    "status": "active",
+    "versions": [
+      {
+        "version": "v1",
+        "path": "presentations/Pengantar_Ilmu_Komunikasi.pptx",
+        "status": "active",
+        "created_at": "2026-06-13"
+      }
+    ],
+    "notes": "Diimpor otomatis oleh import_document.py pada 2026-06-13 13:04"
   }
 ]

@@ -1,322 +1,340 @@
 [
   {
     "id": 1,
-    "title": "PENGENALAN TEKNOLOGI",
-    "subtitle": "Mengenal Kecerdasan Buatan",
+    "title": "MATA KULIAH DASAR",
     "topics": [
-      "pengenalan",
-      "teknologi",
-      "mengenal",
-      "kecerdasan",
-      "buatan",
-      "AI",
-      "artificial intelligence"
+      "mata",
+      "kuliah",
+      "dasar",
+      "pengantar",
+      "ilmu"
     ],
-    "presenter_notes": "Slide pembuka: Mengenal Kecerdasan Buatan — Apa itu AI, bagaimana ia bekerja, dan mengapa relevan bagi kita sehari-hari. Materi Kuliah untuk Audiens Mahasiswa Umum.",
-    "tenri_role": "Berikan komentar pembuka yang menarik tentang relevansi AI dalam kehidupan sehari-hari.",
+    "presenter_notes": "Slide pembuka. Perkenalkan cakupan: dari definisi dasar, unsur, model klasik, tipe komunikasi, teori, hingga era digital dan etika.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "pengenalan teknologi",
-      "pengenalan",
-      "teknologi",
-      "mengenal",
-      "kecerdasan buatan",
-      "artificial intelligence"
+      "mata kuliah dasar",
+      "mata",
+      "kuliah",
+      "dasar",
+      "pengantar",
+      "ilmu"
     ]
   },
   {
     "id": 2,
-    "title": "DEFINISI DASAR",
-    "subtitle": "Apa Itu Kecerdasan Buatan?",
+    "title": "BAB 1  ·  HAKIKAT KOMUNIKASI",
     "topics": [
-      "definisi",
-      "dasar",
-      "kecerdasan buatan",
-      "artificial intelligence",
-      "AI",
-      "mesin",
-      "kognitif",
-      "mitos",
-      "kenyataan"
+      "bab",
+      "hakikat",
+      "komunikasi",
+      "apa",
+      "etimologi"
     ],
-    "presenter_notes": "Kecerdasan Buatan (AI) adalah kemampuan mesin untuk meniru fungsi kognitif manusia — seperti belajar dari pengalaman, mengenali pola, mengambil keputusan, dan memahami bahasa. MITOS: robot super cerdas yang berpikir seperti manusia. KENYATAAN: program statistik yang sangat baik dalam satu tugas spesifik.",
-    "tenri_role": "Koreksi mitos-mitos tentang AI dan jelaskan kenyataan yang lebih sederhana.",
-    "expected_tenri_mode": "gentle_objection",
+    "presenter_notes": "Tekankan: komunikasi = berbagi makna (sharing), bukan transmisi satu arah belaka. Bandingkan definisi Lasswell (linear) dan Hovland (perubahan perilaku).",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
     "triggers": [
-      "definisi",
-      "dasar",
-      "apa itu ai",
-      "apa itu kecerdasan buatan",
-      "kecerdasan buatan",
-      "mitos",
-      "kenyataan"
+      "bab 1  ·  hakikat komunikasi",
+      "bab",
+      "hakikat",
+      "komunikasi",
+      "apa"
     ]
   },
   {
     "id": 3,
-    "title": "PEMETAAN ISTILAH",
-    "subtitle": "AI, Machine Learning & Deep Learning",
+    "title": "BAB 1  ·  PERKEMBANGAN",
     "topics": [
-      "pemetaan",
-      "istilah",
-      "machine learning",
-      "deep learning",
-      "artificial intelligence",
-      "hubungan",
-      "perbedaan"
+      "bab",
+      "perkembangan",
+      "ilmu",
+      "komunikasi",
+      "disiplin"
     ],
-    "presenter_notes": "AI adalah payung besar: segala teknik agar mesin bertindak cerdas. Machine Learning adalah subset AI yang belajar dari data tanpa diprogram eksplisit. Deep Learning adalah subset ML yang menggunakan jaringan saraf tiruan berlapis-lapis.",
-    "tenri_role": "Jelaskan hubungan hierarki antara AI, ML, dan Deep Learning dengan analogi sederhana.",
+    "presenter_notes": "Schramm sering disebut 'bapak ilmu komunikasi' karena melembagakan studi komunikasi di universitas. Sebutkan bahwa disiplin ini meminjam metode dari ilmu sosial lain.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "pemetaan",
-      "istilah",
-      "machine learning",
-      "deep learning",
-      "ml",
-      "dl",
-      "perbedaan ai"
+      "bab 1  ·  perkembangan",
+      "bab",
+      "perkembangan",
+      "ilmu",
+      "komunikasi"
     ]
   },
   {
     "id": 4,
-    "title": "CARA KERJA",
-    "subtitle": "Bagaimana AI Belajar?",
+    "title": "BAB 2  ·  ANATOMI PROSES",
     "topics": [
-      "cara",
-      "kerja",
-      "bagaimana",
-      "belajar",
-      "data",
-      "pola",
-      "pelatihan",
-      "model"
+      "bab",
+      "anatomi",
+      "proses",
+      "unsur",
+      "komunikasi"
     ],
-    "presenter_notes": "Analogi: seperti anak yang dikenalkan ratusan foto kucing. Lama-lama ia menangkap ciri-cirinya, lalu bisa mengenali kucing baru yang belum pernah dilihat. Proses: Data masuk → Model dilatih → Model mengenali pola → Prediksi dibuat.",
-    "tenri_role": "Berikan analogi yang membantu audiens memahami proses belajar mesin secara intuitif.",
+    "presenter_notes": "Jelaskan alurnya: komunikator menyusun pesan, dikirim lewat saluran, diterima komunikan, menimbulkan efek, lalu umpan balik kembali. Gangguan & konteks menyertai seluruh proses.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "cara kerja",
-      "bagaimana ai belajar",
-      "training",
-      "pelatihan",
-      "data latih",
-      "model"
+      "bab 2  ·  anatomi proses",
+      "bab",
+      "anatomi",
+      "proses",
+      "unsur",
+      "komunikasi"
     ]
   },
   {
     "id": 5,
-    "title": "TIGA PENDEKATAN",
-    "subtitle": "Cara Mesin Dilatih",
+    "title": "BAB 2  ·  CARA MEMODELKAN",
     "topics": [
-      "supervised",
-      "unsupervised",
-      "reinforcement",
-      "pendekatan",
-      "metode",
-      "supervised learning",
-      "pembelajaran"
+      "bab",
+      "cara",
+      "memodelkan",
+      "model",
+      "komunikasi"
     ],
-    "presenter_notes": "Tiga pendekatan pelatihan AI: (1) Supervised Learning — diberi contoh berlabel (ini kucing, ini bukan). Contoh: deteksi spam, prediksi harga. (2) Unsupervised Learning — tanpa label, mesin mencari pola sendiri. Contoh: segmentasi pelanggan. (3) Reinforcement Learning — belajar dari trial dan error dengan reward/punishment.",
-    "tenri_role": "Berikan contoh nyata dari setiap pendekatan yang relevan dengan kehidupan mahasiswa.",
+    "presenter_notes": "Poin kunci: evolusi model bergerak dari linear ke transaksional. Shannon-Weaver menyumbang istilah 'noise' yang masih dipakai sampai sekarang.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "tiga pendekatan",
-      "supervised",
-      "unsupervised",
-      "reinforcement",
-      "cara mesin dilatih",
-      "pendekatan pembelajaran"
+      "bab 2  ·  cara memodelkan",
+      "bab",
+      "cara",
+      "memodelkan",
+      "model",
+      "komunikasi"
     ]
   },
   {
     "id": 6,
-    "title": "TANPA DISADARI",
-    "subtitle": "AI Ada di Sekitar Kita",
+    "title": "BAB 3  ·  TINGKATAN",
     "topics": [
-      "tanpa disadari",
-      "sekitar",
-      "rekomendasi",
-      "tiktok",
-      "youtube",
-      "asisten suara",
-      "navigasi",
-      "google maps"
+      "bab",
+      "tingkatan",
+      "tipe",
+      "konteks",
+      "komunikasi"
     ],
-    "presenter_notes": "AI sudah ada di kehidupan sehari-hari tanpa disadari: rekomendasi konten TikTok/YouTube/Shopee, asisten suara (Siri, Google Assistant, Alexa), navigasi GPS (Google Maps prediksi macet), face unlock di smartphone, filter foto otomatis.",
-    "tenri_role": "Tunjukkan bahwa AI sudah sangat dekat dengan kehidupan audiens sehari-hari.",
+    "presenter_notes": "Urutan dari jangkauan tersempit ke terluas. Komunikasi massa berbeda karena khalayaknya anonim, luas, dan heterogen.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "tanpa disadari",
-      "sekitar kita",
-      "rekomendasi",
-      "tiktok",
-      "youtube",
-      "asisten suara",
-      "google maps",
-      "face unlock"
+      "bab 3  ·  tingkatan",
+      "bab",
+      "tingkatan",
+      "tipe",
+      "konteks"
     ]
   },
   {
     "id": 7,
-    "title": "YANG SEDANG RAMAI",
-    "subtitle": "AI Generatif: Mesin yang Mencipta",
+    "title": "BAB 3  ·  PERAN",
     "topics": [
-      "generatif",
-      "mesin",
-      "mencipta",
-      "ChatGPT",
-      "Claude",
-      "Gemini",
-      "DALL-E",
-      "Midjourney",
-      "teks",
-      "gambar",
-      "kode"
+      "bab",
+      "peran",
+      "fungsi",
+      "komunikasi",
+      "informasi"
     ],
-    "presenter_notes": "AI Generatif berbeda dari AI yang hanya menggolongkan — ia membuat konten baru: tulisan, gambar, suara, bahkan kode program. Contoh: ChatGPT, Claude, Gemini (teks & percakapan), DALL-E, Midjourney, Stable Diffusion (gambar), GitHub Copilot (kode).",
-    "tenri_role": "Tunjukkan perbedaan antara AI generatif dan AI konvensional dengan contoh yang familiar.",
+    "presenter_notes": "Fungsi-fungsi ini sering tumpang tindih dalam satu peristiwa komunikasi. Contoh: iklan = informasi + persuasi + kadang hiburan.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "ai generatif",
-      "generatif",
-      "chatgpt",
-      "claude",
-      "gemini",
-      "midjourney",
-      "dall-e",
-      "mesin yang mencipta",
-      "yang sedang ramai"
+      "bab 3  ·  peran",
+      "bab",
+      "peran",
+      "fungsi",
+      "komunikasi"
     ]
   },
   {
     "id": 8,
-    "title": "SISI TERANG",
-    "subtitle": "Manfaat Nyata AI",
+    "title": "BAB 4  ·  BENTUK PESAN",
     "topics": [
-      "sisi terang",
-      "manfaat",
-      "kesehatan",
-      "pendidikan",
-      "produktivitas",
-      "rontgen",
-      "diagnosis",
-      "tutor"
+      "bab",
+      "bentuk",
+      "pesan",
+      "komunikasi",
+      "verbal"
     ],
-    "presenter_notes": "Manfaat nyata AI: (1) Kesehatan — membantu dokter membaca hasil rontgen & mendeteksi penyakit lebih dini. (2) Pendidikan — tutor adaptif yang menyesuaikan kecepatan belajar. (3) Produktivitas — otomatisasi tugas repetitif. (4) Aksesibilitas — terjemahan real-time, text-to-speech untuk difabel.",
-    "tenri_role": "Tekankan manfaat konkret AI dengan data atau contoh nyata dari knowledge base.",
+    "presenter_notes": "Tekankan bahwa nonverbal sering lebih dipercaya daripada verbal ketika keduanya bertentangan. Bahas proksemik (Edward Hall) bila waktu cukup.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "sisi terang",
-      "manfaat",
-      "manfaat ai",
-      "kesehatan",
-      "pendidikan",
-      "produktivitas",
-      "aksesibilitas"
+      "bab 4  ·  bentuk pesan",
+      "bab",
+      "bentuk",
+      "pesan",
+      "komunikasi",
+      "verbal"
     ]
   },
   {
     "id": 9,
-    "title": "SISI GELAP",
-    "subtitle": "Risiko & Keterbatasan",
+    "title": "BAB 4  ·  KERANGKA BERPIKIR",
     "topics": [
-      "sisi gelap",
-      "risiko",
-      "keterbatasan",
-      "bias",
-      "halusinasi",
-      "privasi",
-      "keamanan",
-      "deepfake"
+      "bab",
+      "kerangka",
+      "berpikir",
+      "beberapa",
+      "teori"
     ],
-    "presenter_notes": "Risiko & keterbatasan AI: (1) Bias data — jika data latih timpang, keputusan AI ikut diskriminatif. (2) Halusinasi — AI bisa menghasilkan informasi yang terdengar benar tapi salah. (3) Privasi — sistem AI sering membutuhkan data personal dalam jumlah besar. (4) Deepfake — potensi penyalahgunaan untuk disinformasi.",
-    "tenri_role": "Ingatkan audiens bahwa AI bukan tanpa risiko, terutama soal bias dan halusinasi.",
-    "expected_tenri_mode": "gentle_objection",
+    "presenter_notes": "Ini hanya sampel teori komunikasi massa. Sebutkan bahwa ada banyak tradisi teori (sosiopsikologis, kritis, sibernetika, dll) yang dipelajari lebih dalam di semester lanjut.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
     "triggers": [
-      "sisi gelap",
-      "risiko",
-      "bias",
-      "halusinasi",
-      "privasi",
-      "deepfake",
-      "keterbatasan"
+      "bab 4  ·  kerangka berpikir",
+      "bab",
+      "kerangka",
+      "berpikir",
+      "beberapa",
+      "teori"
     ]
   },
   {
     "id": 10,
-    "title": "SIKAP YANG TEPAT",
-    "subtitle": "Menggunakan AI Secara Bijak",
+    "title": "BAB 5  ·  SKALA LUAS",
     "topics": [
-      "sikap",
-      "tepat",
-      "bijak",
-      "kritis",
-      "verifikasi",
-      "alat",
-      "pengganti",
-      "etika"
+      "bab",
+      "skala",
+      "luas",
+      "komunikasi",
+      "massa"
     ],
-    "presenter_notes": "Sikap bijak menggunakan AI: AI adalah alat, bukan pengganti otak — pakai untuk mempercepat, bukan menggantikan proses berpikir. Selalu verifikasi setiap output AI. Jangan serahkan keputusan penting sepenuhnya ke AI. Tetap kritis dan paham konteks.",
-    "tenri_role": "Ajak audiens berpikir kritis tentang hubungan manusia dan AI, bukan sekadar pengguna pasif.",
-    "expected_tenri_mode": "gentle_objection",
+    "presenter_notes": "Empat fungsi klasik dari Lasswell & Wright. Hubungkan ke contoh nyata: berita = pengawasan; tajuk rencana = korelasi; sinetron = hiburan + transmisi budaya.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
     "triggers": [
-      "sikap tepat",
-      "bijak",
-      "kritis",
-      "verifikasi",
-      "etika ai",
-      "alat bukan pengganti"
+      "bab 5  ·  skala luas",
+      "bab",
+      "skala",
+      "luas",
+      "komunikasi",
+      "massa"
     ]
   },
   {
     "id": 11,
-    "title": "LANGKAH PRAKTIS",
-    "subtitle": "Cara Mulai Belajar AI",
+    "title": "BAB 5  ·  GANGGUAN",
     "topics": [
-      "langkah",
-      "praktis",
-      "mulai",
-      "belajar",
-      "python",
-      "statistika",
-      "kaggle",
-      "proyek"
+      "bab",
+      "gangguan",
+      "hambatan",
+      "komunikasi",
+      "noise"
     ],
-    "presenter_notes": "Langkah praktis belajar AI: (1) Kuasai dasar — logika, statistika dasar, dan Python (paling ramah pemula). (2) Gunakan platform gratis — Google Colab, Kaggle, Hugging Face untuk latihan langsung. (3) Bangun proyek kecil — mulai dari dataset sederhana. (4) Ikuti komunitas AI lokal dan internasional.",
-    "tenri_role": "Berikan roadmap yang realistis dan tidak menakutkan untuk mahasiswa yang ingin mulai belajar AI.",
+    "presenter_notes": "Tekankan: komunikasi efektif menuntut kita mengenali dan meminimalkan noise. Umpan balik adalah alat utama untuk memeriksa apakah pesan sampai dengan benar.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "langkah praktis",
-      "mulai belajar",
-      "python",
-      "kaggle",
-      "google colab",
-      "belajar ai",
-      "cara mulai"
+      "bab 5  ·  gangguan",
+      "bab",
+      "gangguan",
+      "hambatan",
+      "komunikasi"
     ]
   },
   {
     "id": 12,
-    "title": "RINGKASAN",
-    "subtitle": "Yang Perlu Diingat",
+    "title": "BAB 6  ·  KONTEKS KEKINIAN",
     "topics": [
-      "ringkasan",
-      "perlu",
-      "diingat",
-      "kesimpulan",
-      "penutup",
-      "poin utama"
+      "bab",
+      "konteks",
+      "kekinian",
+      "komunikasi",
+      "era"
     ],
-    "presenter_notes": "Ringkasan: AI adalah mesin yang belajar pola dari data, bukan robot berkesadaran. Ia sudah ada di sekitar kita: rekomendasi, navigasi, hingga buka kunci wajah. Punya manfaat besar, tetapi juga risiko: bias, halusinasi, dan privasi. Gunakan sebagai alat bantu berpikir, selalu verifikasi, dan tetap kritis.",
-    "tenri_role": "Tutup dengan pesan yang bermakna tentang hubungan manusia dan teknologi AI.",
+    "presenter_notes": "Hubungkan dengan keseharian mahasiswa (media sosial). Tekankan literasi digital sebagai keterampilan wajib komunikator masa kini.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
     "expected_tenri_mode": "comment",
     "triggers": [
-      "ringkasan",
-      "perlu diingat",
-      "kesimpulan",
-      "penutup",
-      "terima kasih"
+      "bab 6  ·  konteks kekinian",
+      "bab",
+      "konteks",
+      "kekinian",
+      "komunikasi",
+      "era"
+    ]
+  },
+  {
+    "id": 13,
+    "title": "BAB 6  ·  TANGGUNG JAWAB",
+    "topics": [
+      "bab",
+      "tanggung",
+      "jawab",
+      "etika",
+      "komunikasi"
+    ],
+    "presenter_notes": "Etika makin krusial di era digital ketika semua orang bisa menerbitkan informasi. Kaitkan dengan UU ITE dan literasi media di Indonesia.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "bab 6  ·  tanggung jawab",
+      "bab",
+      "tanggung",
+      "jawab",
+      "etika",
+      "komunikasi"
+    ]
+  },
+  {
+    "id": 14,
+    "title": "PENERAPAN",
+    "topics": [
+      "penerapan",
+      "prospek",
+      "karier",
+      "bidang",
+      "kajian"
+    ],
+    "presenter_notes": "Tunjukkan bahwa lulusan ilmu komunikasi punya peluang luas. Tren terbaru: content creator, digital strategist, dan data-driven communication.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "penerapan",
+      "prospek",
+      "karier"
+    ]
+  },
+  {
+    "id": 15,
+    "title": "RANGKUMAN",
+    "topics": [
+      "rangkuman",
+      "komunikasi",
+      "proses",
+      "berbagi",
+      "makna"
+    ],
+    "presenter_notes": "Tutup dengan aksioma Watzlawick: bahkan diam atau tidak merespons pun adalah bentuk komunikasi. Buka sesi tanya jawab.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "rangkuman",
+      "komunikasi",
+      "proses"
+    ]
+  },
+  {
+    "id": 16,
+    "title": "SUMBER",
+    "topics": [
+      "sumber",
+      "referensi",
+      "mulyana",
+      "deddy",
+      "2010"
+    ],
+    "presenter_notes": "Referensi standar yang umum dipakai di program studi Ilmu Komunikasi di Indonesia dan internasional.",
+    "tenri_role": "Berikan komentar atau keterangan singkat jika relevan.",
+    "expected_tenri_mode": "comment",
+    "triggers": [
+      "sumber",
+      "referensi",
+      "mulyana"
     ]
   }
 ]
