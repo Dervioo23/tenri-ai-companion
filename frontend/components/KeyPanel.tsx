@@ -29,9 +29,13 @@ export default function KeyPanel({
       const m = (e as Error).message || String(e);
       // "Failed to fetch" = the request never completed (network/extension/VPN),
       // NOT a CORS block — both providers send Access-Control-Allow-Origin: *.
-      const reason = /failed to fetch|networkerror|load failed/i.test(m)
-        ? "tak sampai ke server (jaringan / ekstensi pemblokir / VPN — bukan CORS)"
-        : m;
+      // A 401/403 = the request DID reach the provider but the key was rejected.
+      let reason = m;
+      if (/failed to fetch|networkerror|load failed/i.test(m)) {
+        reason = "tak sampai ke server (jaringan / ekstensi pemblokir / VPN — bukan CORS)";
+      } else if (/\b(401|403)\b|invalid/i.test(m)) {
+        reason = `${m} — key ditolak. Pastikan key benar & lengkap, atau buat key baru di dashboard provider.`;
+      }
       setHint(`${label}: ${reason}`);
       return false;
     }
