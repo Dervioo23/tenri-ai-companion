@@ -1,0 +1,11 @@
+# Tenri Web backend (FastAPI brain). Audio-free, keyless.
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+numpy>=1.26
+python-dotenv>=1.0
+
+# Only needed to (re)build the knowledge index from source docs on a fresh
+# deploy. If app/data index cache is shipped, these are optional at runtime.
+python-pptx>=0.6.23
+python-docx>=1.1.0
