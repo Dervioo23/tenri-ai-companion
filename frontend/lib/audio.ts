@@ -16,7 +16,9 @@ export class Recorder {
     this.mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) this.chunks.push(e.data);
     };
-    this.mediaRecorder.start();
+    // Timeslice so data flushes periodically — more reliable for short clips
+    // (avoids an empty/undecodable webm that Groq rejects with 400).
+    this.mediaRecorder.start(100);
   }
 
   /** Stop and return the recorded audio. */

@@ -92,6 +92,12 @@ export default function Home() {
     setRecording(false);
     const blob = await recorderRef.current.stop();
     recorderRef.current = null;
+    // Guard tiny/empty recordings (quick taps) — Groq STT rejects them with 400.
+    if (blob.size < 1400) {
+      setErr("Rekaman terlalu singkat — tahan tombol, lalu bicara dengan jelas.");
+      setUi("idle");
+      return;
+    }
     setBusy(true);
     setUi("thinking");
     try {
@@ -165,8 +171,10 @@ export default function Home() {
             <div className="log" style={{ marginTop: 12 }}>
               {log.length === 0 && (
                 <p className="note">
-                  Tahan tombol, ucapkan <b>&ldquo;Tenri&rdquo;</b> untuk membuka, lalu tanya atau
-                  berdebat. Ucapkan <b>&ldquo;terima kasih&rdquo;</b> untuk menutup.
+                  Tahan tombol & <b>mulai dengan menyebut &ldquo;Tenri&rdquo;</b> untuk membuka —
+                  mis. <i>&ldquo;Tenri, jelaskan slide ini&rdquo;</i>. Setelah itu tanya atau berdebat
+                  bebas. Ucapkan <b>&ldquo;terima kasih&rdquo;</b> untuk menutup. Tanpa &ldquo;Tenri&rdquo;,
+                  ia menganggap Anda bicara ke audiens dan diam.
                 </p>
               )}
               {log.map((m) => (
