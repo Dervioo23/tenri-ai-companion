@@ -1,7 +1,24 @@
 import { routeTurn, verifyAnswer } from "./backend";
 import { chat, transcribe } from "./groq";
-import { speak } from "./elevenlabs";
+import { speak as speakEleven } from "./elevenlabs";
+import { speakBrowser } from "./browserTts";
 import type { Keys, Message, RouteResponse } from "./types";
+
+/**
+ * Speak `text`: ElevenLabs when a key is configured (and it works), otherwise
+ * the free browser voice. Keeps Tenri talking even without an ElevenLabs account.
+ */
+async function speakOut(text: string, keys: Keys): Promise<void> {
+  if (keys.elevenlabs && keys.voiceId) {
+    try {
+      await speakEleven(text, keys.elevenlabs, keys.voiceId);
+      return;
+    } catch {
+      /* ElevenLabs failed (e.g. 401/quota) — fall back to the browser voice */
+    }
+  }
+  await speakBrowser(text);
+}
 
 export const WINDOW_MS = 30_000;
 
@@ -95,7 +112,7 @@ export async function runTurn(
       if (cap > 0) text = trimToChars(text, cap);
       h.onTenri(text, resp.sources);
       h.onState("speaking");
-      await speak(text, keys.elevenlabs, keys.voiceId);
+      await speakOut(text, keys);
       newHistory = [
         ...history,
         { role: "user", content: transcript },
@@ -107,7 +124,7 @@ export async function runTurn(
     case "close": {
       h.onTenri(resp.text);
       h.onState("speaking");
-      await speak(resp.text, keys.elevenlabs, keys.voiceId);
+      await speakOut(resp.text, keys);
       break;
     }
     case "navigate":

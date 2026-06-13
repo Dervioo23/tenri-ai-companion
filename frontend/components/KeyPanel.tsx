@@ -44,29 +44,48 @@ export default function KeyPanel({
   async function testAndSave() {
     setStatus("testing");
     setGroqMsg("menguji...");
-    setElevenMsg("menunggu...");
+    setElevenMsg("");
     setHint("");
 
+    // Groq is required (STT + LLM).
     const groqOk = await probe("Groq", () => testGroqKey(groq.trim()));
     setGroqMsg(groqOk ? "✓ terhubung" : "✗ gagal");
-
-    setElevenMsg("menguji...");
-    const elevenOk = await probe("ElevenLabs", () => testElevenKey(elevenlabs.trim()));
-    setElevenMsg(elevenOk ? "✓ terhubung" : "✗ gagal");
-
-    if (groqOk && elevenOk) {
-      const keys: Keys = {
-        groq: groq.trim(),
-        elevenlabs: elevenlabs.trim(),
-        voiceId: voiceId.trim() || DEFAULT_VOICE_ID,
-      };
-      saveKeys(keys);
-      setStatus("ok");
-      setHint("Koneksi berhasil. Key tersimpan di browser ini saja.");
-      onSaved(keys);
-    } else {
+    if (!groqOk) {
       setStatus("err");
+      return;
     }
+
+    // ElevenLabs is OPTIONAL. If provided and valid -> premium voice. If absent
+    // or rejected -> Tenri uses the free browser voice; we don't block on it.
+    let elevenToSave = "";
+    let finalHint = "Koneksi berhasil. Key tersimpan di browser ini saja.";
+    const elevenTrim = elevenlabs.trim();
+    if (elevenTrim) {
+      setElevenMsg("menguji...");
+      // probe() sets a detailed hint on failure; we override it below for UX.
+      const elevenOk = await probe("ElevenLabs", () => testElevenKey(elevenTrim));
+      if (elevenOk) {
+        setElevenMsg("✓ terhubung");
+        elevenToSave = elevenTrim;
+      } else {
+        setElevenMsg("✗ ditolak — pakai suara browser");
+        finalHint =
+          "Groq tersambung. ElevenLabs ditolak (key/akun bermasalah), jadi Tenri " +
+          "akan bicara dengan suara browser gratis. Anda tetap bisa lanjut sekarang.";
+      }
+    } else {
+      setElevenMsg("— pakai suara browser (gratis)");
+    }
+
+    const keys: Keys = {
+      groq: groq.trim(),
+      elevenlabs: elevenToSave,
+      voiceId: voiceId.trim() || DEFAULT_VOICE_ID,
+    };
+    saveKeys(keys);
+    setStatus("ok");
+    setHint(finalHint);
+    onSaved(keys);
   }
 
   return (
@@ -75,10 +94,11 @@ export default function KeyPanel({
       <p className="note">
         Tenri memakai <b>API key Anda sendiri</b>. Key disimpan <b>hanya di browser ini</b>{" "}
         (sessionStorage, hilang saat tab ditutup) dan <b>tidak pernah dikirim ke server kami</b> —
-        hanya langsung ke Groq & ElevenLabs.
+        hanya langsung ke Groq & ElevenLabs. <b>Hanya Groq yang wajib.</b> Tanpa ElevenLabs,
+        Tenri bicara dengan suara browser gratis.
       </p>
 
-      <label>Groq API Key</label>
+      <label>Groq API Key (wajib)</label>
       <input
         type="password"
         value={groq}
@@ -87,12 +107,12 @@ export default function KeyPanel({
         autoComplete="off"
       />
 
-      <label>ElevenLabs API Key</label>
+      <label>ElevenLabs API Key (opsional — suara premium)</label>
       <input
         type="password"
         value={elevenlabs}
         onChange={(e) => setEleven(e.target.value)}
-        placeholder="sk_..."
+        placeholder="kosongkan untuk pakai suara browser gratis"
         autoComplete="off"
       />
 
@@ -106,7 +126,7 @@ export default function KeyPanel({
       />
 
       <div className="row" style={{ marginTop: 12 }}>
-        <button onClick={testAndSave} disabled={status === "testing" || !groq || !elevenlabs}>
+        <button onClick={testAndSave} disabled={status === "testing" || !groq}>
           {status === "testing" ? "Menguji..." : "Test & Simpan"}
         </button>
         {(groqMsg || elevenMsg) && (

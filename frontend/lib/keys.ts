@@ -37,5 +37,7 @@ export function clearKeys(): void {
 }
 
 export function hasKeys(keys: Keys): boolean {
-  return Boolean(keys.groq && keys.elevenlabs);
+  // Only Groq is required (STT + LLM). ElevenLabs is optional — without it Tenri
+  // speaks with the free browser voice.
+  return Boolean(keys.groq);
 }
