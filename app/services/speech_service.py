@@ -229,7 +229,7 @@ class SpeechService:
             )
             if peak < 10:
                 logger.warning(
-                    "Microphone input is nearly silent. Check MIC_DEVICE_INDEX=%s and Windows input permissions.",
+                    "Microphone input is nearly silent. Check MIC_DEVICE_INDEX=%s and operating-system microphone permissions.",
                     self.device_index,
                 )
             return active

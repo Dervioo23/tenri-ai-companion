@@ -28,22 +28,28 @@ class BackgroundListener:
         self._mute_started_at: float | None = None
         self._mute_windows: list[tuple[float, float]] = []
         self._unmute_at: float = 0.0
-        self._stop_fn = None
+        self._stop = threading.Event()
+        self._ready = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._startup_error: Exception | None = None
         self.available: bool = False
         self.last_wait_seconds: float = 0.0
         self.last_record_seconds: float = 0.0
         self.last_stt_seconds: float = 0.0
 
     def start(self) -> bool:
+        if self._thread is not None and self._thread.is_alive():
+            logger.info("BackgroundListener already running; start skipped.")
+            return True
+
         if not self._speech_service.microphone_available:
             logger.info("BackgroundListener: microphone unavailable, skipped.")
             return False
 
         recognizer = self._speech_service.recognizer
         active_threshold = self._speech_service.calibrate_background_energy()
-        mic = sr.Microphone(device_index=self._speech_service.device_index)
 
-        def _callback(r: sr.Recognizer, audio: sr.AudioData) -> None:
+        def _handle_audio(audio: sr.AudioData) -> None:
             try:
                 callback_at = time.monotonic()
                 record_seconds = self._speech_service.audio_duration_seconds(audio)
@@ -94,24 +100,54 @@ class BackgroundListener:
             except Exception as e:
                 logger.debug(f"BackgroundListener transcription error: {e}")
 
-        try:
-            self._stop_fn = recognizer.listen_in_background(
-                mic,
-                _callback,
-                phrase_time_limit=Config.SPEECH_PHRASE_TIME_LIMIT,
-            )
-            self.available = True
-            logger.info(
-                "BackgroundListener started: continuous capture active (energy_threshold=%d).",
-                active_threshold,
-            )
-            return True
-        except Exception as e:
+        def _capture_loop() -> None:
+            try:
+                mic = sr.Microphone(device_index=self._speech_service.device_index)
+                with mic as source:
+                    self.available = True
+                    self._ready.set()
+                    while not self._stop.is_set():
+                        try:
+                            audio = recognizer.listen(
+                                source,
+                                timeout=1.0,
+                                phrase_time_limit=Config.SPEECH_PHRASE_TIME_LIMIT,
+                            )
+                        except sr.WaitTimeoutError:
+                            continue
+                        if not self._stop.is_set():
+                            _handle_audio(audio)
+            except Exception as error:
+                self._startup_error = error
+                logger.warning("BackgroundListener capture thread stopped: %s", error)
+            finally:
+                self.available = False
+                self._ready.set()
+
+        self._stop.clear()
+        self._ready.clear()
+        self._startup_error = None
+        self._thread = threading.Thread(
+            target=_capture_loop,
+            name="tenri-background-listener",
+            daemon=True,
+        )
+        self._thread.start()
+
+        if not self._ready.wait(timeout=2.0) or not self.available:
+            error = self._startup_error or RuntimeError("microphone stream did not become ready")
+            self.stop()
             logger.warning(
-                f"BackgroundListener failed to start: {e}. "
+                f"BackgroundListener failed to start: {error}. "
                 "System will fall back to sequential listen_and_transcribe()."
             )
             return False
+
+        logger.info(
+            "BackgroundListener started: continuous capture active (energy_threshold=%d).",
+            active_threshold,
+        )
+        return True
 
     def mute(self) -> None:
         """Disable capture during TTS playback."""
@@ -193,11 +229,12 @@ class BackgroundListener:
             return None
 
     def stop(self) -> None:
-        if self._stop_fn:
-            try:
-                self._stop_fn(wait_for_stop=False)
-            except Exception as e:
-                logger.debug(f"BackgroundListener stop error: {e}")
-            self._stop_fn = None
+        self._stop.set()
+        thread = self._thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=max(2.0, Config.SPEECH_PHRASE_TIME_LIMIT + 1.0))
+            if thread.is_alive():
+                logger.warning("BackgroundListener thread did not stop before timeout.")
+        self._thread = None
         self.available = False
         logger.info("BackgroundListener stopped.")

@@ -1,4 +1,17 @@
+from unittest.mock import MagicMock, patch
+
+import speech_recognition as sr
+
 from app.services.background_listener import BackgroundListener
+
+
+def _speech_service() -> MagicMock:
+    service = MagicMock()
+    service.microphone_available = True
+    service.device_index = None
+    service.calibrate_background_energy.return_value = 420
+    service.recognizer = MagicMock()
+    return service
 
 
 def test_background_listener_get_exposes_current_utterance_metrics() -> None:
@@ -63,3 +76,49 @@ def test_mute_unmute_records_suppression_window(monkeypatch) -> None:
 
     assert listener._mute_windows == [(100.0, 107.2)]
     assert listener._mute_started_at is None
+
+
+def test_start_opens_microphone_once_and_reports_ready() -> None:
+    service = _speech_service()
+    source = MagicMock()
+    microphone = MagicMock()
+    microphone.__enter__.return_value = source
+
+    def listen_until_stopped(*_args, **_kwargs):
+        raise sr.WaitTimeoutError()
+
+    service.recognizer.listen.side_effect = listen_until_stopped
+    listener = BackgroundListener(service)
+
+    with patch("app.services.background_listener.sr.Microphone", return_value=microphone) as mic:
+        assert listener.start() is True
+        listener.stop()
+
+    mic.assert_called_once_with(device_index=None)
+    assert listener.available is False
+
+
+def test_start_is_idempotent_while_capture_thread_is_alive() -> None:
+    service = _speech_service()
+    listener = BackgroundListener(service)
+    listener._thread = MagicMock()
+    listener._thread.is_alive.return_value = True
+
+    with patch("app.services.background_listener.sr.Microphone") as microphone:
+        assert listener.start() is True
+
+    microphone.assert_not_called()
+    service.calibrate_background_energy.assert_not_called()
+
+
+def test_start_fails_cleanly_when_microphone_context_cannot_open() -> None:
+    service = _speech_service()
+    microphone = MagicMock()
+    microphone.__enter__.side_effect = OSError("CoreAudio denied access")
+    listener = BackgroundListener(service)
+
+    with patch("app.services.background_listener.sr.Microphone", return_value=microphone):
+        assert listener.start() is False
+
+    assert listener.available is False
+    assert listener._thread is None
