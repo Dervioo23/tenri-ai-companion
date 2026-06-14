@@ -1,5 +1,6 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
+from app.services import vision_service
 from app.services.vision_service import VisionService
 
 
@@ -66,3 +67,45 @@ def test_should_snapshot_fires_again_after_interval_elapses() -> None:
     assert service._should_snapshot(True, 100.0) is True
     assert service._should_snapshot(True, 100.0 + interval - 0.5) is False
     assert service._should_snapshot(True, 100.0 + interval) is True
+
+
+# ------------------------------------------------------------------ platform camera backend
+
+def test_preferred_camera_backend_uses_avfoundation_on_macos() -> None:
+    with (
+        patch("app.services.vision_service.sys.platform", "darwin"),
+        patch.object(vision_service.cv2, "CAP_AVFOUNDATION", 1200),
+    ):
+        assert VisionService._preferred_camera_backend() == 1200
+
+
+def test_preferred_camera_backend_uses_directshow_on_windows() -> None:
+    with (
+        patch("app.services.vision_service.sys.platform", "win32"),
+        patch.object(vision_service.cv2, "CAP_DSHOW", 700),
+    ):
+        assert VisionService._preferred_camera_backend() == 700
+
+
+def test_preferred_camera_backend_uses_auto_detection_on_linux() -> None:
+    with patch("app.services.vision_service.sys.platform", "linux"):
+        assert VisionService._preferred_camera_backend() is None
+
+
+def test_open_default_camera_falls_back_when_native_backend_fails() -> None:
+    preferred = MagicMock()
+    preferred.isOpened.return_value = False
+    fallback = MagicMock()
+
+    with (
+        patch.object(VisionService, "_preferred_camera_backend", return_value=1200),
+        patch(
+            "app.services.vision_service.cv2.VideoCapture",
+            side_effect=[preferred, fallback],
+        ) as video_capture,
+    ):
+        result = VisionService._open_default_camera()
+
+    assert result is fallback
+    assert video_capture.call_args_list == [call(0, 1200), call(0)]
+    preferred.release.assert_called_once_with()

@@ -115,4 +115,14 @@ ai-companion-terminal/
 pytest -q
 ```
 
+Kompatibilitas macOS diuji otomatis melalui GitHub Actions dan dapat diperiksa
+secara lokal tanpa memanggil API eksternal:
+
+```bash
+python scripts/check_macos_compatibility.py --require-macos
+```
+
+Panduan instalasi dan checklist microphone, speaker, camera, serta Pygame pada
+MacBook tersedia di [`MACOS_TESTING.md`](MACOS_TESTING.md).
+
 Untuk demo live, uji microphone, provider LLM, TTS, navigasi slide, dan materi aktif sebelum presentasi. Kelulusan unit test tidak membuktikan bahwa latensi jaringan dan perangkat audio di lokasi acara akan stabil.

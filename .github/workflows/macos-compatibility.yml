@@ -1,0 +1,77 @@
+name: macOS compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/macos-compatibility.yml"
+      - "app/**"
+      - "assets/models/**"
+      - "scripts/check_macos_compatibility.py"
+      - "tests/**"
+      - "requirements*.txt"
+      - "main.py"
+  push:
+    branches:
+      - main
+      - codex/runtime-hardening-and-cleanup
+    paths:
+      - ".github/workflows/macos-compatibility.yml"
+      - "app/**"
+      - "assets/models/**"
+      - "scripts/check_macos_compatibility.py"
+      - "tests/**"
+      - "requirements*.txt"
+      - "main.py"
+
+permissions:
+  contents: read
+
+jobs:
+  test-macos:
+    name: ${{ matrix.runner }} / Python 3.12
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - macos-15
+          - macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+
+    env:
+      PYTHONUTF8: "1"
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+      VOICE_INPUT_ENABLED: "false"
+      VOICE_OUTPUT_ENABLED: "false"
+      VISION_ENABLED: "false"
+      LOCAL_TTS_ENABLED: "false"
+      PIPELINE_TRACE_ENABLED: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install PortAudio
+        run: |
+          brew install portaudio
+          echo "CFLAGS=-I$(brew --prefix portaudio)/include" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$(brew --prefix portaudio)/lib" >> "$GITHUB_ENV"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt -r requirements-optional.txt
+
+      - name: Run macOS smoke test
+        run: python scripts/check_macos_compatibility.py --require-macos --headless
+
+      - name: Run complete test suite
+        run: python -m pytest -q

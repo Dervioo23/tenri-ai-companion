@@ -1,4 +1,5 @@
 import cv2
+import sys
 import time
 import threading
 import logging
@@ -75,14 +76,8 @@ class VisionService:
 
     def _camera_loop(self):
         """Background loop for fetching camera frames and analyzing them."""
-        # Try to open webcam (0 is default)
         try:
-            # On Windows, cv2.CAP_DSHOW can speed up startup significantly
-            self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-            if not self.cap.isOpened():
-                # Fallback without CAP_DSHOW
-                self.cap = cv2.VideoCapture(0)
-                
+            self.cap = self._open_default_camera()
             if not self.cap.isOpened():
                 logger.warning("Could not open webcam index 0. Vision features will be disabled.")
                 self.running = False
@@ -159,6 +154,26 @@ class VisionService:
             except Exception as e:
                 logger.error(f"Error in vision thread loop: {e}")
                 time.sleep(0.5)
+
+    @staticmethod
+    def _preferred_camera_backend() -> int | None:
+        """Return the native OpenCV camera backend for the current desktop OS."""
+        if sys.platform == "win32":
+            return getattr(cv2, "CAP_DSHOW", None)
+        if sys.platform == "darwin":
+            return getattr(cv2, "CAP_AVFOUNDATION", None)
+        return None
+
+    @classmethod
+    def _open_default_camera(cls):
+        """Open camera 0 with a native backend, then fall back to auto-detection."""
+        backend = cls._preferred_camera_backend()
+        if backend is not None:
+            preferred = cv2.VideoCapture(0, backend)
+            if preferred.isOpened():
+                return preferred
+            preferred.release()
+        return cv2.VideoCapture(0)
 
     def _should_snapshot(self, face_detected: bool, now: float) -> bool:
         """Return True at most once per SNAPSHOT_INTERVAL_SECONDS while a face is
