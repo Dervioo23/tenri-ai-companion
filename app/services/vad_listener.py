@@ -202,10 +202,18 @@ class VadListener:
 
         try:
             if self._speech_service._groq_client:
-                text = self._speech_service._transcribe_with_groq(audio)
+                text = self._speech_service._transcribe_with_groq(
+                    audio,
+                    min_duration_seconds=Config.AUTO_LISTEN_MIN_AUDIO_SECONDS,
+                )
             else:
                 text = self._speech_service._transcribe_with_google(audio)
         except sr.UnknownValueError:
+            logger.info(
+                "VadListener rejected an utterance during audio/STT quality "
+                "checks (record=%.2fs).",
+                record_seconds,
+            )
             return
         except Exception as e:
             logger.debug("VadListener transcription error: %s", e)

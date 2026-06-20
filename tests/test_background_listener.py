@@ -126,3 +126,37 @@ def test_start_fails_cleanly_when_microphone_context_cannot_open() -> None:
 
     assert listener.available is False
     assert listener._thread is None
+
+
+def test_auto_listener_uses_short_audio_threshold_for_groq() -> None:
+    service = _speech_service()
+    source = MagicMock()
+    microphone_context = MagicMock()
+    microphone_context.__enter__.return_value = source
+    service.microphone_source.return_value = microphone_context
+    service._groq_client = object()
+    service.audio_duration_seconds.return_value = 0.3
+    service.cap_audio_for_stt.side_effect = lambda audio: audio
+    service._transcribe_with_groq.return_value = "Tenri"
+    service.normalize_transcription.return_value = "Tenri"
+    audio = sr.AudioData(b"\x01\x00" * 4800, 16000, 2)
+    calls = 0
+
+    def capture_once(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return audio
+        raise sr.WaitTimeoutError()
+
+    service.recognizer.listen.side_effect = capture_once
+    listener = BackgroundListener(service)
+
+    assert listener.start() is True
+    assert listener.get(timeout=0.5) == "Tenri"
+    listener.stop()
+
+    service._transcribe_with_groq.assert_called_once_with(
+        audio,
+        min_duration_seconds=Config.AUTO_LISTEN_MIN_AUDIO_SECONDS,
+    )

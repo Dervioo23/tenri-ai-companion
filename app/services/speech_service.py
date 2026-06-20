@@ -427,7 +427,10 @@ class SpeechService:
         return text
 
     @staticmethod
-    def _validate_audio_quality(audio: sr.AudioData) -> None:
+    def _validate_audio_quality(
+        audio: sr.AudioData,
+        min_duration_seconds: float = 0.5,
+    ) -> None:
         """Reject audio that is too short or too silent to contain real speech.
 
         Runs BEFORE any API call to Groq. This is the primary hallucination
@@ -454,14 +457,18 @@ class SpeechService:
 
         logger.info(f"Audio quality: duration={duration:.2f}s  RMS={rms:.0f}")
 
-        if duration < 0.5:
+        if duration < min_duration_seconds:
             logger.info("Pre-filter: audio too short — skipping transcription.")
             raise sr.UnknownValueError()
         if rms < 150:
             logger.info(f"Pre-filter: audio too quiet (RMS={rms:.0f}) — skipping transcription.")
             raise sr.UnknownValueError()
 
-    def _transcribe_with_groq(self, audio: sr.AudioData) -> str:
+    def _transcribe_with_groq(
+        self,
+        audio: sr.AudioData,
+        min_duration_seconds: float = 0.5,
+    ) -> str:
         """Send captured audio to Groq Whisper for transcription.
 
         Uses verbose_json to obtain no_speech_prob per segment, which allows
@@ -471,7 +478,10 @@ class SpeechService:
         # Block noise/silence BEFORE sending to API — prevents Whisper hallucinations
         # at the source, not after the fact.
         audio = self.cap_audio_for_stt(audio)
-        self._validate_audio_quality(audio)
+        self._validate_audio_quality(
+            audio,
+            min_duration_seconds=min_duration_seconds,
+        )
 
         wav_bytes = audio.get_wav_data()
         lang = Config.stt_language_code()

@@ -149,6 +149,18 @@ def _voiced_audio(seconds: float = 1.0, amplitude: int = 1000, rate: int = 16000
     return sr.AudioData(frames, rate, 2)
 
 
+def test_short_wake_audio_passes_auto_listen_quality_threshold() -> None:
+    SpeechService._validate_audio_quality(
+        _voiced_audio(seconds=0.3),
+        min_duration_seconds=0.25,
+    )
+
+
+def test_short_wake_audio_remains_rejected_by_default_quality_threshold() -> None:
+    with pytest.raises(sr.UnknownValueError):
+        SpeechService._validate_audio_quality(_voiced_audio(seconds=0.3))
+
+
 class _Seg:
     def __init__(self, no_speech_prob: float, avg_logprob: float):
         self.no_speech_prob = no_speech_prob

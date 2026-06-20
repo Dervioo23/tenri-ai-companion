@@ -48,6 +48,10 @@ def test_handle_utterance_queues_normalized_text(tmp_path):
 
     assert vl.get(timeout=0.1) == "halo tenri"
     assert vl.last_record_seconds > 0
+    assert (
+        vl._speech_service._transcribe_with_groq.call_args.kwargs["min_duration_seconds"]
+        == 0.25
+    )
 
 
 def test_handle_utterance_drops_unknown_value(tmp_path):

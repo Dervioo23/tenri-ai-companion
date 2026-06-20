@@ -69,7 +69,10 @@ class BackgroundListener:
                 audio = self._speech_service.cap_audio_for_stt(audio)
                 record_seconds = round(self._speech_service.audio_duration_seconds(audio), 2)
                 if self._speech_service._groq_client:
-                    text = self._speech_service._transcribe_with_groq(audio)
+                    text = self._speech_service._transcribe_with_groq(
+                        audio,
+                        min_duration_seconds=Config.AUTO_LISTEN_MIN_AUDIO_SECONDS,
+                    )
                 else:
                     text = self._speech_service._transcribe_with_google(audio)
                 stt_seconds = round(time.monotonic() - stt_started_at, 2)
@@ -100,7 +103,11 @@ class BackgroundListener:
                         pass
 
             except sr.UnknownValueError:
-                pass
+                logger.info(
+                    "BackgroundListener rejected an utterance during audio/STT "
+                    "quality checks (record=%.2fs).",
+                    record_seconds,
+                )
             except Exception as e:
                 logger.debug(f"BackgroundListener transcription error: {e}")
 
