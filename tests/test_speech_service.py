@@ -1,4 +1,5 @@
 import logging
+from unittest.mock import MagicMock, patch
 
 from app.services import speech_service as speech_service_module
 from app.services.speech_service import SpeechService
@@ -25,6 +26,43 @@ def test_speech_service_exists() -> None:
 
 def test_parse_invalid_device_index_falls_back_to_default() -> None:
     assert SpeechService._parse_device_index("not-a-number") is None
+
+
+def test_microphone_source_reports_failed_coreaudio_stream_without_cleanup_mask() -> None:
+    microphone = MagicMock()
+    microphone.stream = None
+    microphone.__enter__.return_value = microphone
+
+    with patch(
+        "app.services.speech_service.sr.Microphone",
+        return_value=microphone,
+    ):
+        with pytest.raises(OSError, match="CoreAudio could not open"):
+            with SpeechService.microphone_source(None):
+                pass
+
+    microphone.__exit__.assert_not_called()
+
+
+def test_microphone_source_closes_opened_stream() -> None:
+    microphone = MagicMock()
+    stream = MagicMock()
+    audio = MagicMock()
+    microphone.stream = stream
+    microphone.audio = audio
+    microphone.__enter__.return_value = microphone
+
+    with patch(
+        "app.services.speech_service.sr.Microphone",
+        return_value=microphone,
+    ):
+        with SpeechService.microphone_source(2) as source:
+            assert source is microphone
+
+    stream.close.assert_called_once_with()
+    audio.terminate.assert_called_once_with()
+    assert microphone.stream is None
+    microphone.__exit__.assert_not_called()
 
 
 @pytest.mark.parametrize(

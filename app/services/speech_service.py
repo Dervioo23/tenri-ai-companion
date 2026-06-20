@@ -6,6 +6,9 @@ import struct
 import time
 import wave
 from collections import deque
+from contextlib import contextmanager
+from typing import Iterator
+
 import speech_recognition as sr
 from app.config import Config
 
@@ -193,6 +196,44 @@ class SpeechService:
         )
         return min(max(1, int(configured)), recommended)
 
+    @staticmethod
+    @contextmanager
+    def microphone_source(device_index: int | None) -> Iterator[sr.Microphone]:
+        """Open a microphone without letting SpeechRecognition mask CoreAudio errors.
+
+        SpeechRecognition 3.16.1 swallows exceptions raised by ``PyAudio.open()``
+        inside ``Microphone.__enter__`` and returns an object whose stream is
+        ``None``. Its ``__exit__`` then raises ``AttributeError`` while trying to
+        close that missing stream, hiding the useful device/permission failure.
+        Manage the opened stream directly so the original failure stays visible.
+        """
+        microphone = sr.Microphone(device_index=device_index)
+        source = microphone.__enter__()
+        stream = getattr(source, "stream", None)
+        if stream is None:
+            device_label = "system default" if device_index is None else str(device_index)
+            raise OSError(
+                "CoreAudio could not open the microphone stream "
+                f"(MIC_DEVICE_INDEX={device_label}). Check macOS Microphone permission, "
+                "select a valid input device, or leave MIC_DEVICE_INDEX empty."
+            )
+
+        try:
+            yield source
+        finally:
+            try:
+                stream.close()
+            except Exception as exc:
+                logger.debug("Microphone stream cleanup failed: %s", exc)
+            finally:
+                source.stream = None
+                audio = getattr(source, "audio", None)
+                if audio is not None:
+                    try:
+                        audio.terminate()
+                    except Exception as exc:
+                        logger.debug("PyAudio cleanup failed: %s", exc)
+
     def calibrate_background_energy(self, duration: float = 0.4) -> int:
         """Measure room noise once before continuous listening starts.
 
@@ -204,7 +245,7 @@ class SpeechService:
             return configured
 
         try:
-            with sr.Microphone(device_index=self.device_index) as source:
+            with self.microphone_source(self.device_index) as source:
                 chunks = max(1, int(source.SAMPLE_RATE * duration / source.CHUNK))
                 sum_squares = 0
                 sample_count = 0
@@ -591,7 +632,7 @@ class SpeechService:
             self.last_record_seconds = 0.0
             self.last_transcribe_seconds = 0.0
             self.last_ambient_seconds = 0.0
-            with sr.Microphone(device_index=self.device_index) as source:
+            with self.microphone_source(self.device_index) as source:
                 logger.info("Adjusting for ambient noise...")
                 ambient_started_at = time.monotonic()
                 self.recognizer.adjust_for_ambient_noise(

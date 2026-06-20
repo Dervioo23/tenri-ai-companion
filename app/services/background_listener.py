@@ -102,8 +102,9 @@ class BackgroundListener:
 
         def _capture_loop() -> None:
             try:
-                mic = sr.Microphone(device_index=self._speech_service.device_index)
-                with mic as source:
+                with self._speech_service.microphone_source(
+                    self._speech_service.device_index
+                ) as source:
                     self.available = True
                     self._ready.set()
                     while not self._stop.is_set():
