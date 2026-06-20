@@ -73,6 +73,7 @@ def test_microphone_source_closes_opened_stream() -> None:
         ("Endri tolong dengarkan", "Tenri tolong dengarkan"),
         ("Andri jelaskan slide ini", "Tenri jelaskan slide ini"),
         ("Tendry apa kamu dengar?", "Tenri apa kamu dengar?"),
+        ("Tantri apakah kamu mendengar saya?", "Tenri apakah kamu mendengar saya?"),
         ("Ten li bantu saya", "Tenri bantu saya"),
         ("Teneri jawab singkat", "Tenri jawab singkat"),
         ("Tengri, kamu dengar saya?", "Tenri, kamu dengar saya?"),
@@ -81,6 +82,7 @@ def test_microphone_source_closes_opened_stream() -> None:
         ("Hendri Hendri", "Tenri"),
         ("Tenri Tengri", "Tenri"),
         ("Saya mengenal Hendri di luar konteks ini", "Saya mengenal Tenri di luar konteks ini"),
+        ("Oke halo Tantri apakah kamu siap?", "Oke halo Tenri apakah kamu siap?"),
     ],
 )
 def test_normalize_transcription_corrects_tenri_wake_word_variants(raw, expected) -> None:

@@ -66,14 +66,14 @@ _VALID_SHORT_WORDS: frozenset[str] = frozenset({
 
 TENRI_WAKE_WORD_PATTERN = re.compile(
     r"^\s*(?:(?:oke|ok|halo|hai|hey|baik|permisi)\s+)?"
-    r"(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|tandri|"
+    r"(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|tandri|tantri|"
     r"tenry|tengri|tengry|ten gri|ten ri|ten li|tenri|tendi|tenderi|teneri|teri)\b",
     re.IGNORECASE,
 )
 
 # Catches misspellings of "Tenri" anywhere in the sentence (not just at start).
 _TENRI_ANYWHERE_PATTERN = re.compile(
-    r"\b(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|tandri|"
+    r"\b(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|tandri|tantri|"
     r"tenry|tengri|tengry|ten gri|ten ri|ten li|tendi|tenderi|teneri|teri)\b",
     re.IGNORECASE,
 )
@@ -365,7 +365,7 @@ class SpeechService:
         # Remove duplicate wake words at start ("Tenri Tenri ...")
         normalized = re.sub(
             r"^(Tenri)(?:[\s,]+(?:hendri|hendry|henri|henry|endri|andri|tendri|tendry|"
-            r"tandri|tenry|tengri|tengry|ten gri|ten ri|ten li|teri|tenri|tendi|tenderi|teneri)\b)+",
+            r"tandri|tantri|tenry|tengri|tengry|ten gri|ten ri|ten li|teri|tenri|tendi|tenderi|teneri)\b)+",
             r"\1",
             normalized,
             flags=re.IGNORECASE,
