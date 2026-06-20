@@ -47,6 +47,10 @@ class BackgroundListener:
             return False
 
         recognizer = self._speech_service.recognizer
+        recognizer.phrase_threshold = min(
+            Config.SPEECH_PHRASE_THRESHOLD,
+            Config.AUTO_LISTEN_PHRASE_THRESHOLD,
+        )
         active_threshold = self._speech_service.calibrate_background_energy()
 
         def _handle_audio(audio: sr.AudioData) -> None:
@@ -145,8 +149,10 @@ class BackgroundListener:
             return False
 
         logger.info(
-            "BackgroundListener started: continuous capture active (energy_threshold=%d).",
+            "BackgroundListener started: continuous capture active "
+            "(energy_threshold=%d phrase_threshold=%.2fs).",
             active_threshold,
+            recognizer.phrase_threshold,
         )
         return True
 

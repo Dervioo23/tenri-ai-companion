@@ -143,6 +143,9 @@ class Config:
     CONVERSATION_WINDOW = _get_float("CONVERSATION_WINDOW", 30.0)
     SPEECH_PAUSE_THRESHOLD = _get_float("SPEECH_PAUSE_THRESHOLD", 1.1)
     SPEECH_PHRASE_THRESHOLD = _get_float("SPEECH_PHRASE_THRESHOLD", 0.45)
+    # Auto-listen must accept a short standalone wake word such as "Tenri".
+    # Push-to-talk keeps SPEECH_PHRASE_THRESHOLD for stricter noise rejection.
+    AUTO_LISTEN_PHRASE_THRESHOLD = _get_float("AUTO_LISTEN_PHRASE_THRESHOLD", 0.25)
     SPEECH_NON_SPEAKING_DURATION = _get_float("SPEECH_NON_SPEAKING_DURATION", 0.5)
     SPEECH_TIMEOUT = _get_float("SPEECH_TIMEOUT", _get_float("SPEECH_TIMEOUT_SECONDS", 7.0))
     SPEECH_PHRASE_TIME_LIMIT = _get_float("SPEECH_PHRASE_TIME_LIMIT", _SAFE_SPEECH_PHRASE_TIME_LIMIT)

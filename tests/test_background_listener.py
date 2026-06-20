@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import speech_recognition as sr
 
 from app.services.background_listener import BackgroundListener
+from app.config import Config
 
 
 def _speech_service() -> MagicMock:
@@ -95,6 +96,10 @@ def test_start_opens_microphone_once_and_reports_ready() -> None:
     listener.stop()
 
     service.microphone_source.assert_called_once_with(None)
+    assert service.recognizer.phrase_threshold == min(
+        Config.SPEECH_PHRASE_THRESHOLD,
+        Config.AUTO_LISTEN_PHRASE_THRESHOLD,
+    )
     assert listener.available is False
 
 
